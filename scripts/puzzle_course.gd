@@ -149,7 +149,7 @@ func _build_wall_puzzle() -> void:
 	add_child(switch_node)
 	_box(switch_node, Vector3(0, 0.45, 0), Vector3(1.0, 0.9, 0.8), Color("294a68"))
 	_box(switch_node, Vector3(0, 1.05, 0), Vector3(0.8, 0.3, 0.7), Color("62f0c4"), true)
-	_label("DUVARIN ARKASI\nTPS'de yanından dolaş\nArkadaki düğmeyle yolu aç", Vector3(99, 4.4, 0), Color("f4d88e"))
+	_label("DUVARIN ARKASI\nFPS'de yanından dolaş\nArkadaki düğmeyle yolu aç", Vector3(99, 4.4, 0), Color("f4d88e"))
 	_label("DÜĞME • ETKİLEŞ", Vector3(106.2, 2.0, -3.5), Color("89ffd5"))
 
 
@@ -348,7 +348,7 @@ func _update_context() -> void:
 	if x < 81.8:
 		objective = "MOR KAPIYA ULAŞ • Boyut gücünü aç"
 	elif not wall_open:
-		objective = "DUVARIN ARKASI • TPS'de düğmeyi bul"
+		objective = "DUVARIN ARKASI • FPS'de düğmeyi bul"
 	elif not bridge_completed:
 		objective = "PERSPEKTİF KÖPRÜSÜ • Mavi 2D, mor 3D"
 	elif target_step < 3:

@@ -67,7 +67,7 @@ func _run() -> void:
 	_check(main.current_mode == "3D", "Mor kapı 3D hareketi açıyor")
 	_check(main.current_world == world and world.player == player, "Geçişte dünya ve oyuncu değişmiyor")
 	_check(player.global_position.distance_to(gate_position) < 0.6, "Oyuncu başka haritaya taşınmıyor")
-	_check(world.camera_blend > 0.95, "Tek kamera karakterin arkasına kayıyor")
+	_check(world.camera_blend > 0.95 and world.is_fps and camera.projection == Camera3D.PROJECTION_PERSPECTIVE, "3D geçişi doğrudan FPS perspektifini açıyor")
 	var forward_start := player.global_position.x
 	Input.action_press("move_forward")
 	await create_timer(0.2).timeout
@@ -79,8 +79,7 @@ func _run() -> void:
 	Input.action_release("move_right")
 	_check(player.global_position.z > sideways_start + 0.25, "3D sağ tuşu yana hareket ettiriyor")
 
-	main._on_camera_requested()
-	_check(world.is_fps, "TPS/FPS kamera değişiyor")
+	_check(not player.visual.visible and main.hud.crosshair.visible, "FPS'de karakter gövdesi gizleniyor ve nişangah açılıyor")
 
 	var game_state: Node = root.get_node_or_null("GameState")
 	_check(game_state != null, "Kayıt ve ekonomi sistemi yükleniyor")
@@ -95,6 +94,7 @@ func _run() -> void:
 	await physics_frame
 	await create_timer(1.3).timeout
 	_check(main.current_mode == "2D", "Turuncu kapı kamerayı aynı sahnede karşıdan bakışa döndürüyor")
+	_check(camera.projection == Camera3D.PROJECTION_ORTHOGONAL and player.visual.visible and not main.hud.crosshair.visible, "2D dönüşte düz görünüm ve karakter geri geliyor")
 	_check(main.current_world == world and world.player == player, "Geri dönüşte dünya ve oyuncu korunuyor")
 
 	player.global_position = Vector3(311, 0.15, 0)

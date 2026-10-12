@@ -16,6 +16,7 @@ var plane_z := 0.0
 var depth_limits := Vector2(-3.95, 3.95)
 var coyote_time := 0.0
 var jump_buffer := 0.0
+var view_yaw := 0.0
 
 
 func _ready() -> void:
@@ -47,6 +48,9 @@ func _physics_process(delta: float) -> void:
 		depth = horizontal
 		horizontal = Input.get_axis("move_back", "move_forward")
 	var direction := Vector2(horizontal, depth).normalized()
+	if mode == "3D":
+		var facing_direction := Basis(Vector3.UP, view_yaw) * Vector3(direction.x, 0, direction.y)
+		direction = Vector2(facing_direction.x, facing_direction.z)
 	var acceleration := 28.0 if is_on_floor() else (24.0 if GameState.get_upgrade_level("air") > 0 else 14.0)
 	velocity.x = move_toward(velocity.x, direction.x * SPEED, acceleration * delta)
 	velocity.z = move_toward(velocity.z, direction.y * SPEED, acceleration * delta)

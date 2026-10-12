@@ -21,7 +21,6 @@ func _ready() -> void:
 	current_world = ContinuousWorld.new()
 	add_child(current_world)
 	current_world.mode_changed.connect(_on_mode_changed)
-	current_world.camera_mode_changed.connect(_on_camera_mode_changed)
 	current_world.message_requested.connect(_on_message_requested)
 	current_world.level_completed.connect(_on_level_completed)
 	current_world.coin_collected.connect(func() -> void: _play_sound(SFX_COIN))
@@ -34,7 +33,6 @@ func _ready() -> void:
 	add_child(hud)
 	hud.start_requested.connect(_start_game)
 	hud.upgrade_requested.connect(_on_upgrade_requested)
-	hud.camera_requested.connect(_on_camera_requested)
 	hud.pause_requested.connect(_toggle_pause)
 	hud.restart_requested.connect(_restart)
 	hud.shop_requested.connect(_on_shop_requested)
@@ -96,10 +94,6 @@ func _on_mode_changed(mode: String) -> void:
 		hud.set_mode_2d()
 
 
-func _on_camera_mode_changed(mode: String) -> void:
-	hud.set_camera_mode(mode)
-
-
 func _on_message_requested(message: String) -> void:
 	hud.show_message(message)
 
@@ -119,12 +113,6 @@ func _on_upgrade_requested() -> void:
 
 func _on_shop_requested(id: String) -> void:
 	if GameState.buy_upgrade(id):
-		_play_sound(SFX_CLICK)
-
-
-func _on_camera_requested() -> void:
-	if current_mode == "3D":
-		current_world.toggle_camera()
 		_play_sound(SFX_CLICK)
 
 

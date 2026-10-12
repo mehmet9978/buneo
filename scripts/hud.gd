@@ -2,7 +2,6 @@ extends CanvasLayer
 
 signal start_requested
 signal upgrade_requested
-signal camera_requested
 signal pause_requested
 signal restart_requested
 signal dimension_requested
@@ -22,7 +21,6 @@ const CORAL := Color("ff6f76")
 var coins_label: Label
 var menu_coins_label: Label
 var mode_label: Label
-var camera_button: Button
 var upgrade_button: Button
 var menu_upgrade_button: Button
 var message_label: Label
@@ -77,7 +75,7 @@ func begin_gameplay() -> void:
 	main_menu.visible = false
 	game_hud.visible = true
 	_refresh_touch_controls()
-	show_message("MOR KAPIYA ULAŞ • KAMERA AYNI DÜNYADA ARKANA DÖNECEK")
+	show_message("MOR KAPIYA ULAŞ • AYNI DÜNYADA KARAKTERİN GÖZÜNDEN DEVAM ET")
 
 
 func set_coins(total: int) -> void:
@@ -102,8 +100,6 @@ func set_mode_2d() -> void:
 	is_3d = false
 	if is_instance_valid(mode_label):
 		mode_label.text = "◉  2D YAN BAKIŞ"
-	if is_instance_valid(camera_button):
-		camera_button.visible = false
 	if is_instance_valid(crosshair):
 		crosshair.visible = false
 	_refresh_touch_controls()
@@ -111,15 +107,9 @@ func set_mode_2d() -> void:
 
 func set_mode_3d() -> void:
 	is_3d = true
-	mode_label.text = "◉  3D • TPS"
-	camera_button.visible = true
+	mode_label.text = "◉  3D • FPS"
+	crosshair.visible = true
 	_refresh_touch_controls()
-
-
-func set_camera_mode(mode: String) -> void:
-	mode_label.text = "◉  3D • " + mode
-	camera_button.text = "KAMERA  " + mode
-	crosshair.visible = mode == "FPS"
 
 
 func show_message(text: String) -> void:
@@ -307,11 +297,6 @@ func _build_top_cards() -> void:
 	upgrade_button = _make_button("ZIPLAMA", Vector2(24, 118), Vector2(228, 44), "glass")
 	upgrade_button.pressed.connect(func() -> void: open_shop())
 	game_hud.add_child(upgrade_button)
-	camera_button = _make_button("KAMERA  TPS", Vector2.ZERO, Vector2(166, 44), "glass")
-	camera_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	camera_button.position = Vector2(-188, 90)
-	camera_button.pressed.connect(func() -> void: camera_requested.emit())
-	game_hud.add_child(camera_button)
 
 
 func _build_main_menu() -> void:
@@ -357,7 +342,7 @@ func _build_main_menu() -> void:
 	main_menu.add_child(menu_upgrade_button)
 	var hint_card := _make_card(Vector2(72, 530), Vector2(386, 82), Color(0.03, 0.11, 0.16, 0.88), Color(0.18, 0.55, 0.62, 0.55))
 	main_menu.add_child(hint_card)
-	var hint_title := _make_label("2D  →  TPS  →  FPS", 19, MINT, UI_FONT)
+	var hint_title := _make_label("2D  ↔  FPS", 19, MINT, UI_FONT)
 	hint_title.position = Vector2(18, 11)
 	hint_card.add_child(hint_title)
 	var hint_copy := _make_label("Görünmeyen yolu bul. Boyutla köprü kur.", 15, Color("c5dfe2"), UI_FONT)
@@ -370,7 +355,7 @@ func _build_main_menu() -> void:
 	menu_coins_label = _make_label("◆  000", 23, GOLD, UI_FONT)
 	menu_coins_label.position = Vector2(20, 11)
 	profile_card.add_child(menu_coins_label)
-	var version := _make_label("ALPHA 0.5  •  BOYUT BULMACALARI", 13, Color("90b5be"), UI_FONT)
+	var version := _make_label("ALPHA 0.6  •  2D / FPS", 13, Color("90b5be"), UI_FONT)
 	version.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	version.position = Vector2(-244, -42)
 	main_menu.add_child(version)
@@ -586,7 +571,7 @@ func _build_settings() -> void:
 	vibration.button_pressed = bool(GameState.settings.vibration)
 	vibration.toggled.connect(func(value: bool) -> void: GameState.update_setting("vibration", value))
 	stack.add_child(vibration)
-	var keys := _make_overlay_caption("BOYUT: Q   •   ETKİLEŞ: E   •   TPS/FPS: C\nFPS bakışı: ekranın sağ üstünde sürükle")
+	var keys := _make_overlay_caption("BOYUT: Q   •   ETKİLEŞ: E\n3D'ye geçince doğrudan FPS • Bakış: sağda sürükle")
 	keys.add_theme_font_size_override("font_size", 15)
 	stack.add_child(keys)
 	var back := _make_overlay_button("GERİ", true)

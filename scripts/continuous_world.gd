@@ -1,7 +1,6 @@
 extends Node3D
 
 signal mode_changed(mode: String)
-signal camera_mode_changed(mode: String)
 signal message_requested(text: String)
 signal level_completed
 signal coin_collected
@@ -48,7 +47,6 @@ var camera: Camera3D
 var mode := "2D"
 var is_fps := false
 var camera_blend := 0.0
-var fps_blend := 0.0
 var orbit_yaw := 0.0
 var orbit_pitch := 0.0
 var checkpoint := Vector3(5, 0.1, 0)
@@ -89,7 +87,7 @@ func _ready() -> void:
 	player.fell.connect(_on_player_fell)
 	add_child(player)
 	camera = Camera3D.new()
-	camera.fov = 48.0
+	camera.set_orthogonal(14.0, 0.05, 240.0)
 	add_child(camera)
 	camera.global_position = _side_camera_position()
 	camera.look_at(_side_camera_target(), Vector3.UP)
@@ -134,10 +132,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if mode != "3D":
 		return
-	if event.is_action_pressed("camera_toggle") and not event.is_echo():
-		toggle_camera()
-		get_viewport().set_input_as_handled()
-		return
 	if event is InputEventScreenDrag and event.position.x > get_viewport().get_visible_rect().size.x * 0.43 and not (event.position.x > get_viewport().get_visible_rect().size.x - 340 and event.position.y > get_viewport().get_visible_rect().size.y - 340):
 		_apply_look(event.relative, 0.004 * float(GameState.settings.sensitivity))
 	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -148,22 +142,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
-func toggle_camera() -> void:
-	if mode != "3D":
-		return
-	is_fps = not is_fps
-	player.set_first_person(is_fps)
-	camera_mode_changed.emit("FPS" if is_fps else "TPS")
-
-
 func transition_to_3d() -> void:
 	if mode == "3D":
 		return
 	mode = "3D"
+	is_fps = true
 	player.set_mode(mode)
+	apply_graphics()
 	mode_changed.emit(mode)
-	camera_mode_changed.emit("TPS")
-	message_requested.emit("3D AÇILDI • YUKARI İLERİ, SAĞ/SOL YAN HAREKET")
+	message_requested.emit("FPS AÇILDI • KARAKTERİN GÖZÜNDEN DEVAM ET")
 	if not OS.has_feature("mobile"):
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -175,6 +162,7 @@ func transition_to_2d() -> void:
 	is_fps = false
 	player.set_first_person(false)
 	player.set_mode(mode)
+	apply_graphics()
 	mode_changed.emit(mode)
 	message_requested.emit("KAMERA ÖNE DÖNDÜ • YOL AYNI YOL")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -182,11 +170,12 @@ func transition_to_2d() -> void:
 
 func _apply_look(relative: Vector2, sensitivity: float) -> void:
 	orbit_yaw -= relative.x * sensitivity
+	player.view_yaw = orbit_yaw
 	orbit_pitch = clampf(orbit_pitch + relative.y * sensitivity, -0.6, 0.7)
 
 
 func _side_camera_position() -> Vector3:
-	return player.global_position + Vector3(3.0, 3.1, 22.0)
+	return _side_camera_target() + Vector3(0, 0, 22.0)
 
 
 func _side_camera_target() -> Vector3:
@@ -196,28 +185,26 @@ func _side_camera_target() -> Vector3:
 func _update_camera(delta: float) -> void:
 	if not is_instance_valid(camera) or not is_instance_valid(player):
 		return
-	camera_blend = move_toward(camera_blend, 1.0 if mode == "3D" else 0.0, delta / 1.15)
-	fps_blend = move_toward(fps_blend, 1.0 if is_fps else 0.0, delta / 0.28)
-	var side_pos := _side_camera_position()
-	var side_target := _side_camera_target()
-	var orbit := Basis(Vector3.UP, orbit_yaw) * Vector3(-7.3, 3.7 + orbit_pitch * 2.5, 2.1)
-	var third_pos := player.global_position + orbit
-	var third_target := player.global_position + Vector3(3.1, 1.55, 0.0)
-	var desired_pos := side_pos.lerp(third_pos, camera_blend)
-	var desired_target := side_target.lerp(third_target, camera_blend)
+	camera_blend = move_toward(camera_blend, 1.0 if mode == "3D" else 0.0, delta / 0.85)
+	var blend := smoothstep(0.0, 1.0, camera_blend)
 	var first_pos := player.global_position + Vector3(0.4, 1.62, 0)
 	var first_forward := Basis(Vector3.UP, orbit_yaw) * Vector3(5.0, -orbit_pitch * 3.0, 0.0)
-	desired_pos = desired_pos.lerp(first_pos, fps_blend)
-	desired_target = desired_target.lerp(first_pos + first_forward, fps_blend)
-	if camera_blend > 0.55 and fps_blend < 0.95:
-		desired_pos = _camera_clear_position(desired_pos)
-	var easing := 1.0 - exp(-5.0 * delta)
-	camera.global_position = camera.global_position.lerp(desired_pos, easing)
-	if camera_blend > 0.55 and fps_blend < 0.95:
-		camera.global_position = _camera_clear_position(camera.global_position)
-	var look_target := camera.global_position + (desired_target - camera.global_position).normalized() * 5.0
-	camera.look_at(look_target, Vector3.UP)
-	camera.fov = lerpf(46.0, 72.0, camera_blend) + fps_blend * 5.0
+	if camera_blend == 0.0:
+		# Parallel rays and zero tilt expose only the front face of aligned blocks.
+		camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+		camera.size = 14.0
+		camera.global_position = _side_camera_position()
+		camera.global_basis = Basis.IDENTITY
+	else:
+		camera.projection = Camera3D.PROJECTION_PERSPECTIVE
+		# Match the orthographic frame at departure, then glide into the eyes.
+		camera.fov = lerpf(rad_to_deg(2.0 * atan(7.0 / 22.0)), 72.0, blend)
+		camera.global_position = _side_camera_position().lerp(first_pos, blend)
+		if camera_blend < 0.98:
+			camera.global_position = _camera_clear_position(camera.global_position)
+		camera.global_basis = Basis.IDENTITY.slerp(Basis.looking_at(first_forward, Vector3.UP), blend)
+	player.set_first_person(camera_blend > 0.82)
+	player.view_yaw = orbit_yaw
 
 
 func _camera_clear_position(candidate: Vector3) -> Vector3:
@@ -602,6 +589,6 @@ func _respawn() -> void:
 
 func apply_graphics() -> void:
 	var quality := int(GameState.settings.graphics)
-	sun.shadow_enabled = quality > 0
+	sun.shadow_enabled = quality > 0 and mode == "3D"
 	get_viewport().msaa_3d = Viewport.MSAA_2X if quality == 2 else Viewport.MSAA_DISABLED
 	camera.far = 160.0 if quality == 0 else 240.0

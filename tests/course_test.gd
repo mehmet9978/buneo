@@ -97,7 +97,7 @@ func _run() -> void:
 	player.reset_at(Vector3(101, 0.1, -3.5))
 	await _walk_to(world, 106.1)
 	course.interact()
-	_check(course.wall_open and course.wall_door.collision_layer == 0, "TPS'de duvarın yanından dolaşıp düğmeyle çıkış açılıyor")
+	_check(course.wall_open and course.wall_door.collision_layer == 0, "FPS'de duvarın yanından dolaşıp düğmeyle çıkış açılıyor")
 
 	player.reset_at(Vector3(148, 0.1, 0))
 	await create_timer(0.2).timeout
@@ -118,7 +118,6 @@ func _run() -> void:
 	await create_timer(0.2).timeout
 	world.transition_to_3d()
 	player.reset_at(Vector3(208, 0.1, 0))
-	world.toggle_camera()
 	await create_timer(0.7).timeout
 	world.camera.look_at(course.targets[1].global_position, Vector3.UP)
 	_check(not course.activate_target(1) and course.target_step == 0, "FPS kilidi yanlış sırayı reddediyor")
@@ -127,16 +126,17 @@ func _run() -> void:
 		_check(course.activate_target(index), "Nişan alınan FPS hedefi %d etkinleşiyor" % (index + 1))
 	_check(course.energy_door.collision_layer == 0, "Üç hedef enerji kapısının fiziksel kilidini açıyor")
 
-	world.toggle_camera()
+	world.transition_to_2d()
 	player.reset_at(Vector3(96, 0.1, 0))
 	world.camera.look_at(course.targets[0].global_position, Vector3.UP)
-	_check(not course.activate_target(0), "Enerji hedefleri TPS modunda etkinleştirilemiyor")
+	_check(not course.activate_target(0), "Enerji hedefleri 2D modunda etkinleştirilemiyor")
+	world.transition_to_3d()
 	await create_timer(0.15).timeout
 	await _walk_depth_to(world, -8.5)
-	_check(course.secrets_found.has(0), "Yan mağaraya TPS hareketiyle girilip kristal alınıyor")
+	_check(course.secrets_found.has(0), "Yan mağaraya FPS hareketiyle girilip kristal alınıyor")
 	await create_timer(0.6).timeout
 	var camera_ray := PhysicsRayQueryParameters3D.create(player.global_position + Vector3(0, 1.4, 0), world.camera.global_position, 2)
-	_check(world.get_world_3d().direct_space_state.intersect_ray(camera_ray).is_empty(), "TPS kamera mağarada duvar arkasında kalmıyor")
+	_check(world.get_world_3d().direct_space_state.intersect_ray(camera_ray).is_empty(), "FPS kamera mağarada karakterin göz hizasında kalıyor")
 	player.reset_at(Vector3(184, 0.05, 0))
 	await create_timer(0.1).timeout
 	await _walk_to(world, 188.0)
@@ -145,7 +145,7 @@ func _run() -> void:
 	player.reset_at(Vector3(221.5, 0.1, 0))
 	await create_timer(0.15).timeout
 	await _walk_depth_to(world, 8.5)
-	_check(course.secrets_found.has(2), "Enerji kilidinin arkasındaki hazineye TPS'de giriliyor")
+	_check(course.secrets_found.has(2), "Enerji kilidinin arkasındaki hazineye FPS'de giriliyor")
 	_check(course.secrets_found.size() == 3 and state.collected_secrets.size() == 3, "Üç gizli alanın kristalleri temasla toplanıp kalıcı kaydediliyor")
 	state.coins = 100
 	_check(state.buy_upgrade("shield"), "Kalkan satın alınabiliyor")

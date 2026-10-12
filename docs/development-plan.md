@@ -4,7 +4,7 @@
 
 - [x] Hareketli, çöken, kaybolan ve boyuta bağlı platformlar
 - [x] Zamanlı lazer, hareketli testere, zıplama pedi, sandık etkileşimi
-- [x] Aynı konumda 2D/TPS geçişi ve TPS/FPS bakışı
+- [x] Aynı konumda ortografik 2D/FPS geçişi (0.6: TPS ve kamera seçimi kaldırıldı)
 - [x] Duvar arkası düğme, perspektif köprüsü, sıralı FPS enerji kilidi
 - [x] Üç isteğe bağlı gizli alan ve kalıcı kristal koleksiyonu
 - [x] Gerçek yıldız hesabı, en iyi süre ve düşüş/yeniden doğma sayacı

@@ -1,20 +1,20 @@
 # BUNEO: Boyut Kapısı
 
-Godot 4 ile geliştirilen Android odaklı, tek bir 3D dünya içinde 2D bakış ve TPS/FPS kamera geçişi yapan platform oyunu.
+Godot 4 ile geliştirilen Android odaklı, aynı 3D dünyada tam düz 2D görünüm ile FPS arasında geçiş yapan platform oyunu.
 Android uygulaması yatay ekranda açılır. Ekran düğmeleri aynı anda hareket ve zıplama için çoklu dokunmayı destekler.
 
-0.5 sürümünde kamera geçişi oynanış mekaniğine dönüştürüldü. Bu sürüm tek bölümlü bir Android alpha sürümüdür; düşman, boss veya ikinci bölüm içermez.
+0.6 sürümünde 2D kamera eğimsiz ortografik görünüm kullanır: blokların üst/yan yüzleri perspektifle açığa çıkmaz. 3D'ye geçiş doğrudan karakterin gözündeki FPS'ye ulaşır; TPS modu ve kamera seçimi kaldırıldı. Bu sürüm tek bölümlü bir Android alpha sürümüdür.
 
 ## Oynanış
 
 - Yaklaşık 315 oyun birimi uzunluğundaki parkurda altınları topla ve özellikler ekranından kalıcı yükseltme satın al.
 - Parkurun tamamı aynı 3D sahnede ve aynı animasyonlu karakterle oynanır. İlk kısımda kamera karşıdan bakar, hareket 2D düzleme kilitlidir.
-- Mor kapıda kamera kesintisiz olarak karakterin arkasına döner ve derinlik yönünde hareket açılır. Dünya ve oyuncu yeniden oluşturulmaz.
+- Mor kapıda kamera aynı karakterin göz hizasına yaklaşır ve FPS hareketi açılır. Dünya ve oyuncu yeniden oluşturulmaz.
 - Mor kapı boyut gücünü açar. `BOYUT` / `Q` ile bulunduğun konumu koruyarak 2D ve 3D arasında geçebilirsin. 2D'de o anki derinlik düzleminde hareket edersin.
-- Duvarın arkasındaki düğmeye TPS'de yanından dolaşarak ulaş. Mavi 2D ve mor 3D basamakları arasında havada boyut değiştirerek perspektif köprüsünü geç. FPS'de hedeflere 1→2→3 sırasıyla nişan alıp etkileşerek enerji kilidini aç.
+- Duvarın arkasındaki düğmeye FPS'de yanından dolaşarak ulaş. Mavi 2D ve mor 3D basamakları arasında havada boyut değiştirerek perspektif köprüsünü geç. FPS'de hedeflere 1→2→3 sırasıyla nişan alıp etkileşerek enerji kilidini aç.
 - Hareketli, basınca çöken, zamanla kaybolan ve moda göre aktifleşen platformlar; periyodik lazerler, yana hareket eden testereler ve yüksek rotaya fırlatan bir zıplama pedi bulunur.
 - Etkileşimle kırılan sandıklar 3 altın verir. Yan mağara, yüksek bulut yolu ve enerji kilidi arkasındaki hazine alanının her biri 5 altınlık bir kristal içerir.
-- 3D görünümde `C` veya `KAMERA` düğmesi FPS/TPS arasında geçiş yapar. Turuncu kapıda kamera yeniden karşıdan bakar.
+- FPS'de hareket baktığın yönü takip eder. Turuncu kapıda kamera yeniden tam düz 2D bakışa döner.
 - Parkurda üç farklı zemin tonu, atlanabilir dönen engeller, yükseltilmiş platformlar, kontrol bayrakları ve can sistemi bulunur. Düşman yoktur.
 - Canlı çevrede sürüklenen bulutlar, atmosferik gökyüzü, rüzgârla sallanan çimenler, meyveli ağaçlar, çalılar, kayalar, çitler, sandıklar ve uzak kuleler bulunur.
 - Uçuruma düşüldüğünde veya canlar bitince son kontrol noktasından devam edilir. Bitiş kapısı 15 altın verir ve süre/altın özetini gösterir.
@@ -30,7 +30,6 @@ Android uygulaması yatay ekranda açılır. Ekran düğmeleri aynı anda hareke
 | --- | --- | --- |
 | Hareket | 2D: A/D; 3D: W/S ileri-geri, A/D yan hareket | Ekran yön tuşları |
 | Zıplama | Space | ZIPLA |
-| TPS/FPS | C | KAMERA |
 | 2D/3D boyut değişimi | Q | BOYUT |
 | Sandık, düğme, FPS hedefi | E | ETKİLEŞ |
 | Kamera bakışı | Fare | Ekranın sağ tarafında düğmelerin dışındaki alanda sürükleme |
@@ -48,6 +47,7 @@ godot --path . --headless -s res://tests/smoke_test.gd
 godot --path . --headless -s res://tests/course_test.gd
 godot --path . --headless -s res://tests/touch_test.gd
 godot --path . --headless -s res://tests/save_test.gd
+godot --path . --headless -s res://tests/camera_test.gd
 ```
 
 Testler ayrı kayıt dosyaları kullanır, oyuncunun kayıtlarını değiştirmez. Parkur testi gerçek hareket girdileriyle köprü, düğme ve gizli rotaların erişilebilirliğini doğrular. Bölge başlangıçlarına test amaçlı konumlandırma yapılır; bu test tam bir baştan sona kullanıcı cihaz testi değildir.
