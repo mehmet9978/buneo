@@ -4,6 +4,7 @@
 # Builds
 export/*.apk
 export/*.aab
+export/*.idsig
 
 # Local editor and OS files
 .DS_Store
