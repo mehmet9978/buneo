@@ -1,0 +1,11 @@
+# Godot generated data
+.godot/
+
+# Builds
+export/*.apk
+export/*.aab
+
+# Local editor and OS files
+.DS_Store
+*.tmp
+*.log
