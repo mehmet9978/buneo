@@ -5,6 +5,10 @@ signal upgrade_requested
 signal camera_requested
 signal pause_requested
 signal restart_requested
+signal dimension_requested
+signal interact_requested
+signal settings_changed
+signal shop_requested(id: String)
 
 const TOUCH_TEXTURE := preload("res://assets/touch_button.svg")
 const DISPLAY_FONT := preload("res://assets/fonts/Bungee-Regular.ttf")
@@ -39,6 +43,19 @@ var is_3d := false
 var gameplay_active := false
 var message_tween: Tween
 var damage_flash: ColorRect
+var objective_label: Label
+var run_label: Label
+var prompt_label: Label
+var crosshair: Label
+var finish_stars: Label
+var menu_record: Label
+var settings_panel: Control
+var shop_panel: Control
+var shop_buttons: Dictionary = {}
+var dimension_button: TouchScreenButton
+var interact_button: TouchScreenButton
+var shop_note: Label
+var menu_feedback: Label
 
 
 func _ready() -> void:
@@ -69,15 +86,16 @@ func set_coins(total: int) -> void:
 	if is_instance_valid(menu_coins_label):
 		menu_coins_label.text = "◆  %03d" % total
 	_update_upgrade_button()
+	_refresh_shop()
 
 
 func set_upgrade(level: int) -> void:
-	var cost := GameState.get_upgrade_cost()
 	if is_instance_valid(upgrade_button):
-		upgrade_button.text = "ZIPLAMA  LV.%d   •   %d◆" % [level, cost]
+		upgrade_button.text = "ÖZELLİKLER  •  ZIPLAMA %d/3" % level
 	if is_instance_valid(menu_upgrade_button):
-		menu_upgrade_button.text = "ZIPLAMAYI GELİŞTİR   LV.%d   •   %d◆" % [level, cost]
+		menu_upgrade_button.text = "ÖZELLİKLERİ GELİŞTİR   •   %d◆" % GameState.coins
 	_update_upgrade_button()
+	_refresh_shop()
 
 
 func set_mode_2d() -> void:
@@ -86,6 +104,8 @@ func set_mode_2d() -> void:
 		mode_label.text = "◉  2D YAN BAKIŞ"
 	if is_instance_valid(camera_button):
 		camera_button.visible = false
+	if is_instance_valid(crosshair):
+		crosshair.visible = false
 	_refresh_touch_controls()
 
 
@@ -99,6 +119,7 @@ func set_mode_3d() -> void:
 func set_camera_mode(mode: String) -> void:
 	mode_label.text = "◉  3D • " + mode
 	camera_button.text = "KAMERA  " + mode
+	crosshair.visible = mode == "FPS"
 
 
 func show_message(text: String) -> void:
@@ -107,6 +128,10 @@ func show_message(text: String) -> void:
 	if is_instance_valid(message_tween):
 		message_tween.kill()
 	message_label.text = text
+	if is_instance_valid(shop_panel) and shop_panel.visible:
+		shop_note.text = text
+	if not gameplay_active and is_instance_valid(menu_feedback):
+		menu_feedback.text = text
 	message_label.modulate.a = 1.0
 	message_tween = create_tween()
 	message_tween.tween_interval(2.5)
@@ -136,12 +161,25 @@ func set_paused(value: bool) -> void:
 	_refresh_touch_controls()
 
 
-func show_completion(time_seconds: float, found_coins: int) -> void:
+func show_completion(time_seconds: float, found_coins: int, deaths: int, secrets: int, result: Dictionary) -> void:
 	var minutes := int(time_seconds) / 60
 	var seconds := int(time_seconds) % 60
-	finish_stats.text = "SÜRE   %02d:%02d\nTOPLANAN   %02d ◆\nBİTİRME ÖDÜLÜ   +15 ◆" % [minutes, seconds, found_coins]
+	finish_stars.text = "★  ".repeat(result.stars) + "☆  ".repeat(3 - result.stars)
+	finish_stats.text = "SÜRE  %02d:%02d   •   ALTIN  %02d ◆\nDÜŞÜŞ / YENİDEN DOĞMA  %d   •   KRİSTAL  %d/3\n%s   •   EN İYİ  %02d:%02d\n+15 ◆ BİTİRME ÖDÜLÜ" % [minutes, seconds, found_coins, deaths, secrets, "YENİ REKOR!" if result.new_record else "PARKUR TAMAMLANDI", int(result.best_time) / 60, int(result.best_time) % 60]
 	finish_panel.visible = true
 	_refresh_touch_controls()
+
+
+func set_run_info(course: Node3D, elapsed: float, deaths: int) -> void:
+	objective_label.text = course.objective
+	run_label.text = "KRİSTAL %d/3   •   %02d:%02d   •   DÜŞÜŞ %d   •   KALKAN %d" % [course.secrets_found.size(), int(elapsed) / 60, int(elapsed) % 60, deaths, course.shield_charges]
+	prompt_label.text = course.prompt
+	dimension_button.modulate.a = float(GameState.settings.controls_alpha) if course.unlocked else 0.35
+	crosshair.add_theme_color_override("font_color", MINT if is_instance_valid(course.aim_target) else Color.WHITE)
+
+
+func set_menu_record() -> void:
+	menu_record.text = "EN İYİ  %s   •   %d/3 ★   •   %d/3 KRİSTAL" % ["—" if GameState.best_time <= 0 else "%02d:%02d" % [int(GameState.best_time) / 60, int(GameState.best_time) % 60], GameState.best_stars, GameState.collected_secrets.size()]
 
 
 func play_transition(text: String) -> void:
@@ -164,12 +202,43 @@ func _build_hud() -> void:
 	_build_touch_controls()
 	message_label = _make_label("", 19, Color.WHITE, UI_FONT)
 	message_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	message_label.position = Vector2(-390, 104)
+	message_label.position = Vector2(-390, 176)
 	message_label.size = Vector2(780, 48)
 	message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	message_label.add_theme_color_override("font_outline_color", INK)
 	message_label.add_theme_constant_override("outline_size", 7)
 	game_hud.add_child(message_label)
+	objective_label = _make_label("", 16, Color.WHITE, UI_FONT)
+	objective_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	objective_label.position = Vector2(-370, 84)
+	objective_label.size = Vector2(740, 28)
+	objective_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	objective_label.add_theme_constant_override("outline_size", 5)
+	objective_label.add_theme_color_override("font_outline_color", INK)
+	game_hud.add_child(objective_label)
+	run_label = _make_label("", 14, Color("c8f5f2"), UI_FONT)
+	run_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	run_label.position = Vector2(-330, 112)
+	run_label.size = Vector2(660, 26)
+	run_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	run_label.add_theme_constant_override("outline_size", 5)
+	run_label.add_theme_color_override("font_outline_color", INK)
+	game_hud.add_child(run_label)
+	prompt_label = _make_label("", 21, GOLD, UI_FONT)
+	prompt_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	prompt_label.position = Vector2(-300, -88)
+	prompt_label.size = Vector2(600, 32)
+	prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prompt_label.add_theme_constant_override("outline_size", 5)
+	prompt_label.add_theme_color_override("font_outline_color", INK)
+	game_hud.add_child(prompt_label)
+	crosshair = _make_label("+", 36, Color.WHITE, UI_FONT)
+	crosshair.set_anchors_preset(Control.PRESET_CENTER)
+	crosshair.position = Vector2(-18, -28)
+	crosshair.size = Vector2(36, 56)
+	crosshair.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	crosshair.visible = false
+	game_hud.add_child(crosshair)
 	damage_flash = ColorRect.new()
 	damage_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
 	damage_flash.color = Color(1.0, 0.08, 0.16, 0.24)
@@ -179,6 +248,9 @@ func _build_hud() -> void:
 	_build_main_menu()
 	_build_transition()
 	_build_overlay_panels()
+	_build_settings()
+	_build_shop()
+	set_menu_record()
 	show_main_menu()
 
 
@@ -233,9 +305,11 @@ func _build_top_cards() -> void:
 	mode_label.add_theme_constant_override("outline_size", 5)
 	game_hud.add_child(mode_label)
 	upgrade_button = _make_button("ZIPLAMA", Vector2(24, 118), Vector2(228, 44), "glass")
-	upgrade_button.pressed.connect(func() -> void: upgrade_requested.emit())
+	upgrade_button.pressed.connect(func() -> void: open_shop())
 	game_hud.add_child(upgrade_button)
-	camera_button = _make_button("KAMERA  TPS", Vector2(266, 118), Vector2(166, 44), "glass")
+	camera_button = _make_button("KAMERA  TPS", Vector2.ZERO, Vector2(166, 44), "glass")
+	camera_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	camera_button.position = Vector2(-188, 90)
 	camera_button.pressed.connect(func() -> void: camera_requested.emit())
 	game_hud.add_child(camera_button)
 
@@ -279,14 +353,14 @@ func _build_main_menu() -> void:
 	play.pressed.connect(func() -> void: start_requested.emit())
 	main_menu.add_child(play)
 	menu_upgrade_button = _make_button("ZIPLAMAYI GELİŞTİR", Vector2(72, 454), Vector2(386, 56), "glass")
-	menu_upgrade_button.pressed.connect(func() -> void: upgrade_requested.emit())
+	menu_upgrade_button.pressed.connect(func() -> void: open_shop())
 	main_menu.add_child(menu_upgrade_button)
 	var hint_card := _make_card(Vector2(72, 530), Vector2(386, 82), Color(0.03, 0.11, 0.16, 0.88), Color(0.18, 0.55, 0.62, 0.55))
 	main_menu.add_child(hint_card)
 	var hint_title := _make_label("2D  →  TPS  →  FPS", 19, MINT, UI_FONT)
 	hint_title.position = Vector2(18, 11)
 	hint_card.add_child(hint_title)
-	var hint_copy := _make_label("Harita değişmez; sadece bakışın değişir.", 15, Color("c5dfe2"), UI_FONT)
+	var hint_copy := _make_label("Görünmeyen yolu bul. Boyutla köprü kur.", 15, Color("c5dfe2"), UI_FONT)
 	hint_copy.position = Vector2(18, 44)
 	hint_card.add_child(hint_copy)
 	var profile_card := _make_card(Vector2.ZERO, Vector2(180, 54), Color(0.025, 0.08, 0.12, 0.88), Color(0.93, 0.65, 0.2, 0.5))
@@ -296,10 +370,21 @@ func _build_main_menu() -> void:
 	menu_coins_label = _make_label("◆  000", 23, GOLD, UI_FONT)
 	menu_coins_label.position = Vector2(20, 11)
 	profile_card.add_child(menu_coins_label)
-	var version := _make_label("ALPHA 0.4  •  ANDROID", 13, Color("90b5be"), UI_FONT)
+	var version := _make_label("ALPHA 0.5  •  BOYUT BULMACALARI", 13, Color("90b5be"), UI_FONT)
 	version.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	version.position = Vector2(-244, -42)
 	main_menu.add_child(version)
+	menu_record = _make_label("", 14, Color("a7cfce"), UI_FONT)
+	menu_record.position = Vector2(74, 634)
+	main_menu.add_child(menu_record)
+	menu_feedback = _make_label("", 14, GOLD, UI_FONT)
+	menu_feedback.position = Vector2(74, 666)
+	main_menu.add_child(menu_feedback)
+	var settings_button := _make_button("AYARLAR", Vector2.ZERO, Vector2(180, 48), "glass")
+	settings_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	settings_button.position = Vector2(-208, 94)
+	settings_button.pressed.connect(func() -> void: open_settings())
+	main_menu.add_child(settings_button)
 
 
 func _build_touch_controls() -> void:
@@ -314,15 +399,42 @@ func _build_touch_controls() -> void:
 	var jump := _make_action_button("ZIPLA", "jump")
 	game_hud.add_child(jump)
 	touch_buttons = [left, right, up_button, down_button, jump]
+	dimension_button = _make_action_button("BOYUT", "dimension_toggle")
+	game_hud.add_child(dimension_button)
+	interact_button = _make_action_button("ETKİLEŞ", "interact")
+	game_hud.add_child(interact_button)
+	touch_buttons.append(dimension_button)
+	touch_buttons.append(interact_button)
 
 
 func _layout_touch_controls() -> void:
-	if touch_buttons.size() != 5:
+	if touch_buttons.size() < 7:
 		return
 	var viewport_size := get_viewport().get_visible_rect().size
-	var centers := [Vector2(78, viewport_size.y - 122), Vector2(206, viewport_size.y - 122), Vector2(142, viewport_size.y - 186), Vector2(142, viewport_size.y - 58), Vector2(viewport_size.x - 94, viewport_size.y - 105)]
+	var scale_factor := float(GameState.settings.controls_size)
+	var margin := 24.0
+	if OS.has_feature("mobile"):
+		var screen_size := Vector2(DisplayServer.screen_get_size())
+		var safe := DisplayServer.get_display_safe_area()
+		if safe.size.x > 0 and screen_size.x > 0:
+			margin = maxf(24, maxf(safe.position.x, screen_size.x - safe.end.x) * viewport_size.x / screen_size.x + 12)
+	var inset := maxf(0.0, margin - 24.0)
+	game_hud.offset_left = inset
+	game_hud.offset_right = -inset
+	if is_instance_valid(main_menu):
+		main_menu.offset_left = inset
+		main_menu.offset_right = -inset
+	viewport_size.x -= inset * 2.0
+	margin = 24.0
+	var left_x := margin + 64 * scale_factor
+	var right_x := left_x + 128 * scale_factor
+	var center_x := (left_x + right_x) * 0.5
+	var bottom := viewport_size.y - 68 * scale_factor - 10
+	var centers := [Vector2(left_x, bottom - 70 * scale_factor), Vector2(right_x, bottom - 70 * scale_factor), Vector2(center_x, bottom - 144 * scale_factor), Vector2(center_x, bottom), Vector2(viewport_size.x - margin - 64 * scale_factor, bottom - 30 * scale_factor), Vector2(viewport_size.x - margin - 208 * scale_factor, bottom - 30 * scale_factor), Vector2(viewport_size.x - margin - 64 * scale_factor, bottom - 176 * scale_factor)]
 	for index in range(touch_buttons.size()):
-		touch_buttons[index].position = centers[index] - Vector2(64, 64)
+		touch_buttons[index].scale = Vector2.ONE * scale_factor
+		touch_buttons[index].modulate.a = float(GameState.settings.controls_alpha)
+		touch_buttons[index].position = centers[index] - Vector2.ONE * 64 * scale_factor
 
 
 func _build_transition() -> void:
@@ -354,14 +466,20 @@ func _build_overlay_panels() -> void:
 	var restart := _make_overlay_button("BAŞTAN OYNA")
 	restart.pressed.connect(func() -> void: restart_requested.emit())
 	pause_stack.add_child(restart)
+	var settings_button := _make_overlay_button("AYARLAR")
+	settings_button.pressed.connect(func() -> void: open_settings())
+	pause_stack.add_child(settings_button)
 	finish_panel = _make_overlay()
 	var finish_stack := _make_overlay_stack(finish_panel)
 	finish_stack.add_child(_make_overlay_title("PARKUR TAMAMLANDI!"))
-	var stars := _make_overlay_title("★  ★  ★")
-	stars.add_theme_color_override("font_color", GOLD)
-	finish_stack.add_child(stars)
+	finish_stars = _make_overlay_title("☆  ☆  ☆")
+	finish_stars.add_theme_color_override("font_color", GOLD)
+	finish_stack.add_child(finish_stars)
 	finish_stats = _make_overlay_caption("")
 	finish_stack.add_child(finish_stats)
+	var criteria := _make_overlay_caption("★ Bitiş  •  ★ ≤3:00 ve ≤3 düşüş  •  ★ 3 kristal")
+	criteria.add_theme_font_size_override("font_size", 15)
+	finish_stack.add_child(criteria)
 	var again := _make_overlay_button("TEKRAR OYNA", true)
 	again.pressed.connect(func() -> void: restart_requested.emit())
 	finish_stack.add_child(again)
@@ -377,6 +495,124 @@ func _make_overlay() -> Control:
 	shade.color = Color(0.01, 0.03, 0.055, 0.82)
 	overlay.add_child(shade)
 	return overlay
+
+
+func open_shop() -> void:
+	if gameplay_active and not pause_panel.visible:
+		pause_requested.emit()
+	shop_panel.visible = true
+	shop_note.text = "Altınlarını kalıcı özellikler için kullan."
+	_refresh_shop()
+	_refresh_touch_controls()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func open_settings() -> void:
+	if gameplay_active and not pause_panel.visible:
+		pause_requested.emit()
+	settings_panel.visible = true
+	_refresh_touch_controls()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func close_modal() -> bool:
+	if settings_panel.visible:
+		settings_panel.visible = false
+	elif shop_panel.visible:
+		shop_panel.visible = false
+	else:
+		return false
+	_refresh_touch_controls()
+	return true
+
+
+func _build_shop() -> void:
+	shop_panel = _make_overlay()
+	var stack := _make_overlay_stack(shop_panel)
+	stack.add_child(_make_overlay_title("ÖZELLİKLER"))
+	for id in ["jump", "magnet", "shield", "air"]:
+		var button := _make_overlay_button("")
+		button.custom_minimum_size.y = 70
+		button.add_theme_font_size_override("font_size", 17)
+		button.pressed.connect(func() -> void: shop_requested.emit(id))
+		stack.add_child(button)
+		shop_buttons[id] = button
+	shop_note = _make_overlay_caption("Altınlarını kalıcı özellikler için kullan.")
+	shop_note.add_theme_font_size_override("font_size", 16)
+	stack.add_child(shop_note)
+	var back := _make_overlay_button("GERİ", true)
+	back.pressed.connect(func() -> void: close_modal())
+	stack.add_child(back)
+	_refresh_shop()
+
+
+func _refresh_shop() -> void:
+	var names := {"jump": "ZIPLAMA GÜCÜ", "magnet": "ALTIN MIKNATISI", "shield": "KALKAN", "air": "HAVA KONTROLÜ"}
+	var descriptions := {"jump": "Daha yükseğe zıpla", "magnet": "Yakındaki altınları çek", "shield": "Her turda bir hasarı engelle", "air": "Havada daha hızlı yön değiştir"}
+	for id in shop_buttons:
+		var button: Button = shop_buttons[id]
+		var level := GameState.get_upgrade_level(id)
+		var maximum: int = GameState.UPGRADE_LIMITS[id]
+		var cost := GameState.upgrade_cost(id)
+		button.text = "%s   %d/%d   •   %s\n%s" % [names[id], level, maximum, "TAMAM" if level >= maximum else "%d◆" % cost, descriptions[id]]
+		button.disabled = level >= maximum
+		button.modulate = Color.WHITE if GameState.coins >= cost or level >= maximum else Color(0.75, 0.85, 0.87)
+
+
+func _build_settings() -> void:
+	settings_panel = _make_overlay()
+	var stack := _make_overlay_stack(settings_panel)
+	stack.add_child(_make_overlay_title("AYARLAR"))
+	_add_slider(stack, "Efekt sesi", "effects", 0.0, 1.0, 0.05)
+	_add_slider(stack, "Kamera hassasiyeti", "sensitivity", 0.4, 2.0, 0.1)
+	_add_slider(stack, "Düğme boyutu", "controls_size", 0.8, 1.2, 0.05)
+	_add_slider(stack, "Düğme görünürlüğü", "controls_alpha", 0.3, 1.0, 0.05)
+	var quality := OptionButton.new()
+	quality.add_theme_font_override("font", UI_FONT)
+	quality.add_theme_font_size_override("font_size", 19)
+	quality.custom_minimum_size.y = 46
+	for value in ["GRAFİK: DÜŞÜK", "GRAFİK: ORTA", "GRAFİK: YÜKSEK"]:
+		quality.add_item(value)
+	quality.selected = int(GameState.settings.graphics)
+	quality.item_selected.connect(func(index: int) -> void:
+		GameState.update_setting("graphics", index)
+		settings_changed.emit()
+	)
+	stack.add_child(quality)
+	var vibration := CheckButton.new()
+	vibration.text = "TİTREŞİM"
+	vibration.add_theme_font_override("font", UI_FONT)
+	vibration.add_theme_font_size_override("font_size", 18)
+	vibration.button_pressed = bool(GameState.settings.vibration)
+	vibration.toggled.connect(func(value: bool) -> void: GameState.update_setting("vibration", value))
+	stack.add_child(vibration)
+	var keys := _make_overlay_caption("BOYUT: Q   •   ETKİLEŞ: E   •   TPS/FPS: C\nFPS bakışı: ekranın sağ üstünde sürükle")
+	keys.add_theme_font_size_override("font_size", 15)
+	stack.add_child(keys)
+	var back := _make_overlay_button("GERİ", true)
+	back.pressed.connect(func() -> void: close_modal())
+	stack.add_child(back)
+
+
+func _add_slider(stack: VBoxContainer, title: String, key: String, minimum: float, maximum: float, step_value: float) -> void:
+	var row := HBoxContainer.new()
+	var label := _make_label(title, 17, Color("d6eeee"), UI_FONT)
+	label.custom_minimum_size.x = 210
+	row.add_child(label)
+	var slider := HSlider.new()
+	slider.min_value = minimum
+	slider.max_value = maximum
+	slider.step = step_value
+	slider.value = float(GameState.settings[key])
+	slider.custom_minimum_size = Vector2(230, 28)
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.value_changed.connect(func(value: float) -> void:
+		GameState.update_setting(key, value)
+		_layout_touch_controls()
+		settings_changed.emit()
+	)
+	row.add_child(slider)
+	stack.add_child(row)
 
 
 func _make_overlay_stack(panel: Control) -> VBoxContainer:
@@ -417,23 +653,22 @@ func _make_overlay_button(value: String, primary: bool = false) -> Button:
 
 
 func _refresh_touch_controls() -> void:
-	if touch_buttons.size() != 5:
+	if touch_buttons.size() < 7:
 		return
 	var overlays_open := (pause_panel.visible if is_instance_valid(pause_panel) else false) or (finish_panel.visible if is_instance_valid(finish_panel) else false)
-	var active := gameplay_active and not overlays_open
+	var active := gameplay_active and not overlays_open and not (shop_panel.visible if is_instance_valid(shop_panel) else false) and not (settings_panel.visible if is_instance_valid(settings_panel) else false)
 	touch_buttons[0].visible = active
 	touch_buttons[1].visible = active
 	up_button.visible = active and is_3d
 	down_button.visible = active and is_3d
 	touch_buttons[4].visible = active
+	dimension_button.visible = active
+	interact_button.visible = active
 
 
 func _update_upgrade_button() -> void:
-	var affordable := GameState.coins >= GameState.get_upgrade_cost()
-	if is_instance_valid(upgrade_button):
-		upgrade_button.modulate = Color.WHITE if affordable else Color(0.72, 0.78, 0.8)
 	if is_instance_valid(menu_upgrade_button):
-		menu_upgrade_button.modulate = Color.WHITE if affordable else Color(0.72, 0.78, 0.8)
+		menu_upgrade_button.text = "ÖZELLİKLERİ GELİŞTİR   •   %d◆" % GameState.coins
 
 
 func _make_button(text: String, pos: Vector2, button_size: Vector2, kind: String) -> Button:
@@ -500,7 +735,7 @@ func _make_action_button(text: String, action: String) -> TouchScreenButton:
 	hit_area.radius = 52.0
 	button.shape = hit_area
 	button.shape_centered = true
-	var label := _make_label(text, 33 if text != "ZIPLA" else 17, Color.WHITE, UI_FONT)
+	var label := _make_label(text, 33 if text.length() == 1 else 17, Color.WHITE, UI_FONT)
 	label.position = Vector2.ZERO
 	label.size = Vector2(128, 128)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

@@ -10,6 +10,7 @@ signal player_hurt
 signal health_changed(health: int)
 
 const Hero3D := preload("res://scripts/hero_3d.gd")
+const PuzzleCourse := preload("res://scripts/puzzle_course.gd")
 const TREE := preload("res://assets/quaternius_platformer/Tree.gltf")
 const FRUIT_TREE := preload("res://assets/quaternius_platformer/Tree_Fruit.gltf")
 const GRASS := preload("res://assets/quaternius_platformer/Grass_1.gltf")
@@ -30,17 +31,16 @@ const PLATFORM_VISUAL := preload("res://assets/quaternius_platformer/Cube_Grass_
 const COIN_VISUAL := preload("res://assets/quaternius_platformer/Coin.gltf")
 const SAW_VISUAL := preload("res://assets/quaternius_platformer/Hazard_Saw.gltf")
 const GOAL_FLAG := preload("res://assets/quaternius_platformer/Goal_Flag.gltf")
-const GEM_VISUAL := preload("res://assets/quaternius_platformer/Gem_Blue.gltf")
 const STAR_VISUAL := preload("res://assets/quaternius_platformer/Star.gltf")
 const ARROW_VISUAL := preload("res://assets/quaternius_platformer/Arrow.gltf")
 
 const ISLANDS: Array[Vector2] = [
 	Vector2(0, 28), Vector2(31, 54), Vector2(57, 84),
-	Vector2(87, 111), Vector2(114, 141), Vector2(144, 168),
+	Vector2(87, 111), Vector2(114, 141), Vector2(144, 153), Vector2(165, 168),
 	Vector2(171, 199), Vector2(202, 228), Vector2(231, 258),
 	Vector2(261, 286), Vector2(289, 315)
 ]
-const CHECKPOINTS := [39.0, 73.0, 99.0, 153.0, 187.0, 245.0, 299.0]
+const CHECKPOINTS := [39.0, 73.0, 99.0, 149.0, 166.0, 187.0, 205.0, 245.0, 299.0]
 const HAZARDS := [Vector3(47, 0.65, 0), Vector3(63, 0.65, 0), Vector3(129, 0.65, -1.7), Vector3(179, 0.65, 1.8), Vector3(211, 0.65, -1.5), Vector3(271, 0.65, 0)]
 
 var player: CharacterBody3D
@@ -66,6 +66,12 @@ var collected_coins := 0
 var run_time := 0.0
 var invulnerability := 0.0
 var hazards: Array[Node3D] = []
+var course: Node3D
+var checkpoint_mode := "2D"
+var deaths := 0
+var gates_used: Array[float] = []
+var world_environment: WorldEnvironment
+var sun: DirectionalLight3D
 
 
 func _ready() -> void:
@@ -88,16 +94,16 @@ func _ready() -> void:
 	camera.global_position = _side_camera_position()
 	camera.look_at(_side_camera_target(), Vector3.UP)
 	camera.current = true
+	course = PuzzleCourse.new()
+	course.world = self
+	add_child(course)
+	apply_graphics()
 
 
 func _process(delta: float) -> void:
 	world_time += delta
 	run_time += delta
 	invulnerability = maxf(0.0, invulnerability - delta)
-	if player.global_position.x >= 81.8 and player.global_position.x < 225.8 and mode == "2D":
-		transition_to_3d()
-	elif player.global_position.x >= 225.8 and mode == "3D":
-		transition_to_2d()
 	for index in range(swayers.size()):
 		var node := swayers[index]
 		if is_instance_valid(node):
@@ -110,23 +116,32 @@ func _process(delta: float) -> void:
 		var coin := coins[index]
 		if is_instance_valid(coin) and not coin.is_queued_for_deletion():
 			coin.rotation.y += delta * 2.0
-			coin.position.y = coin_heights[index] + sin(world_time * 2.1 + index) * 0.18
+			if not coin.get_meta("magnet_active", false):
+				coin.position.y = coin_heights[index] + sin(world_time * 2.1 + index) * 0.18
 	for index in range(hazards.size()):
 		hazards[index].rotation.y += delta * (1.3 + index % 3 * 0.3)
 	_update_camera(delta)
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("dimension_toggle") and not event.is_echo():
+		course.toggle_dimension()
+		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed("interact") and not event.is_echo():
+		course.interact()
+		get_viewport().set_input_as_handled()
+		return
 	if mode != "3D":
 		return
 	if event.is_action_pressed("camera_toggle") and not event.is_echo():
 		toggle_camera()
 		get_viewport().set_input_as_handled()
 		return
-	if event is InputEventScreenDrag and event.position.x > get_viewport().get_visible_rect().size.x * 0.43:
-		_apply_look(event.relative, 0.004)
+	if event is InputEventScreenDrag and event.position.x > get_viewport().get_visible_rect().size.x * 0.43 and not (event.position.x > get_viewport().get_visible_rect().size.x - 340 and event.position.y > get_viewport().get_visible_rect().size.y - 340):
+		_apply_look(event.relative, 0.004 * float(GameState.settings.sensitivity))
 	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		_apply_look(event.relative, 0.0025)
+		_apply_look(event.relative, 0.0025 * float(GameState.settings.sensitivity))
 	elif event is InputEventMouseButton and event.pressed and not OS.has_feature("mobile"):
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
@@ -146,8 +161,8 @@ func transition_to_3d() -> void:
 		return
 	mode = "3D"
 	player.set_mode(mode)
-	checkpoint = Vector3(89, 0.1, 0)
 	mode_changed.emit(mode)
+	camera_mode_changed.emit("TPS")
 	message_requested.emit("3D AÇILDI • YUKARI İLERİ, SAĞ/SOL YAN HAREKET")
 	if not OS.has_feature("mobile"):
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -160,14 +175,13 @@ func transition_to_2d() -> void:
 	is_fps = false
 	player.set_first_person(false)
 	player.set_mode(mode)
-	checkpoint = Vector3(233, 0.1, 0)
 	mode_changed.emit(mode)
 	message_requested.emit("KAMERA ÖNE DÖNDÜ • YOL AYNI YOL")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _apply_look(relative: Vector2, sensitivity: float) -> void:
-	orbit_yaw = clampf(orbit_yaw - relative.x * sensitivity, -1.0, 1.0)
+	orbit_yaw -= relative.x * sensitivity
 	orbit_pitch = clampf(orbit_pitch + relative.y * sensitivity, -0.6, 0.7)
 
 
@@ -195,15 +209,26 @@ func _update_camera(delta: float) -> void:
 	var first_forward := Basis(Vector3.UP, orbit_yaw) * Vector3(5.0, -orbit_pitch * 3.0, 0.0)
 	desired_pos = desired_pos.lerp(first_pos, fps_blend)
 	desired_target = desired_target.lerp(first_pos + first_forward, fps_blend)
+	if camera_blend > 0.55 and fps_blend < 0.95:
+		desired_pos = _camera_clear_position(desired_pos)
 	var easing := 1.0 - exp(-5.0 * delta)
 	camera.global_position = camera.global_position.lerp(desired_pos, easing)
+	if camera_blend > 0.55 and fps_blend < 0.95:
+		camera.global_position = _camera_clear_position(camera.global_position)
 	var look_target := camera.global_position + (desired_target - camera.global_position).normalized() * 5.0
 	camera.look_at(look_target, Vector3.UP)
 	camera.fov = lerpf(46.0, 72.0, camera_blend) + fps_blend * 5.0
 
 
+func _camera_clear_position(candidate: Vector3) -> Vector3:
+	var anchor := player.global_position + Vector3(0, 1.4, 0)
+	var ray := PhysicsRayQueryParameters3D.create(anchor, candidate, 2)
+	var hit := get_world_3d().direct_space_state.intersect_ray(ray)
+	return candidate if hit.is_empty() else hit.position + hit.normal * 0.28
+
+
 func _build_sky_and_light() -> void:
-	var world_environment := WorldEnvironment.new()
+	world_environment = WorldEnvironment.new()
 	var environment := Environment.new()
 	var sky_material := ProceduralSkyMaterial.new()
 	sky_material.sky_top_color = Color("4faeda")
@@ -227,7 +252,7 @@ func _build_sky_and_light() -> void:
 	environment.fog_sky_affect = 0.22
 	world_environment.environment = environment
 	add_child(world_environment)
-	var sun := DirectionalLight3D.new()
+	sun = DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-50, -35, 0)
 	sun.light_color = Color("fff5df")
 	sun.light_energy = 0.72
@@ -302,9 +327,6 @@ func _decorate_island(island: Vector2) -> void:
 			_place_model(FENCE, Vector3(x + segment * 0.9, 0, -4.0), 0.45, 0.0)
 	if island.y - island.x > 26.0:
 		_place_model(CHEST if int(island.x) % 2 else CRATE, Vector3(island.y - 4.2, 0, -3.5), 0.45)
-	var midpoint := (island.x + island.y) * 0.5
-	if midpoint > 88.0 and midpoint < 225.0 and int(midpoint) % 2 == 0:
-		_place_model(GEM_VISUAL, Vector3(midpoint, 0, 3.55), 0.34)
 
 
 func _place_model(scene: PackedScene, location: Vector3, size: float, yaw: float = INF) -> Node3D:
@@ -389,6 +411,9 @@ func _build_gates() -> void:
 	_place_model(GOAL_FLAG, Vector3(308.2, 0, -3.2), 0.83, 0.0)
 	finish.body_entered.connect(func(body: Node3D) -> void:
 		if body == player and not is_finished:
+			if not course.all_puzzles_solved():
+				message_requested.emit("Bitiş için duvar, köprü ve enerji kilidini çöz.")
+				return
 			is_finished = true
 			GameState.add_coin(15)
 			level_completed.emit()
@@ -425,6 +450,7 @@ func _build_checkpoints() -> void:
 			if body != player or x <= checkpoint.x:
 				return
 			checkpoint = Vector3(x + 1.5, 0.1, 0)
+			checkpoint_mode = mode
 			beacon.light_color = Color("ffe28c")
 			beacon.light_energy = 1.4
 			checkpoint_activated.emit()
@@ -495,12 +521,18 @@ func _add_gate(x: float, color: Color, to_3d: bool) -> void:
 	emblem.rotation.y = PI * 0.5
 	gate.add_child(emblem)
 	gate.body_entered.connect(func(body: Node3D) -> void:
-		if body != player:
+		if body != player or gates_used.has(x):
 			return
+		gates_used.append(x)
 		if to_3d:
+			course.unlocked = true
 			transition_to_3d()
+			checkpoint = Vector3(78, 0.1, 0)
+			checkpoint_mode = "3D"
 		else:
 			transition_to_2d()
+			checkpoint = Vector3(223, 0.1, 0)
+			checkpoint_mode = "2D"
 	)
 	add_child(gate)
 
@@ -533,19 +565,43 @@ func _on_player_fell() -> void:
 func _take_hit(fell: bool) -> void:
 	if invulnerability > 0.0 or is_finished:
 		if fell and not is_finished:
-			player.reset_at(checkpoint)
+			deaths += 1
+			_respawn()
+		return
+	if not fell and course.shield_charges > 0:
+		course.shield_charges -= 1
+		invulnerability = 1.3
+		message_requested.emit("KALKAN HASARI ENGELLEDİ")
 		return
 	invulnerability = 1.3
 	health -= 1
 	player_hurt.emit()
 	if health <= 0:
+		deaths += 1
 		health = max_health
-		player.reset_at(checkpoint)
+		_respawn()
 		message_requested.emit("YENİDEN DENE • KONTROL NOKTASINDAN DEVAM")
 	elif fell:
-		player.reset_at(checkpoint)
+		deaths += 1
+		_respawn()
 		message_requested.emit("DÜŞTÜN • KONTROL NOKTASINDAN DEVAM")
 	else:
 		player.velocity = Vector3(-3.0, 4.5, 0)
 		message_requested.emit("DİKKAT • TEHLİKEYE DOKUNDUN")
 	health_changed.emit(health)
+
+
+func _respawn() -> void:
+	player.reset_at(checkpoint)
+	if checkpoint_mode == "3D":
+		transition_to_3d()
+	else:
+		transition_to_2d()
+	player.set_first_person(is_fps)
+
+
+func apply_graphics() -> void:
+	var quality := int(GameState.settings.graphics)
+	sun.shadow_enabled = quality > 0
+	get_viewport().msaa_3d = Viewport.MSAA_2X if quality == 2 else Viewport.MSAA_DISABLED
+	camera.far = 160.0 if quality == 0 else 240.0

@@ -12,6 +12,10 @@ var mode := "2D"
 var visual: Node3D
 var animator: AnimationPlayer
 var current_animation := ""
+var plane_z := 0.0
+var depth_limits := Vector2(-3.95, 3.95)
+var coyote_time := 0.0
+var jump_buffer := 0.0
 
 
 func _ready() -> void:
@@ -43,23 +47,32 @@ func _physics_process(delta: float) -> void:
 		depth = horizontal
 		horizontal = Input.get_axis("move_back", "move_forward")
 	var direction := Vector2(horizontal, depth).normalized()
-	velocity.x = move_toward(velocity.x, direction.x * SPEED, 28.0 * delta)
-	velocity.z = move_toward(velocity.z, direction.y * SPEED, 28.0 * delta)
+	var acceleration := 28.0 if is_on_floor() else (24.0 if GameState.get_upgrade_level("air") > 0 else 14.0)
+	velocity.x = move_toward(velocity.x, direction.x * SPEED, acceleration * delta)
+	velocity.z = move_toward(velocity.z, direction.y * SPEED, acceleration * delta)
+	coyote_time = 0.12 if is_on_floor() else maxf(0.0, coyote_time - delta)
+	jump_buffer = maxf(0.0, jump_buffer - delta)
+	if Input.is_action_just_pressed("jump"):
+		jump_buffer = 0.12
 
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
-	if Input.is_action_just_pressed("jump") and is_on_floor():
-		velocity.y = BASE_JUMP + GameState.jump_level * 0.72
+	if jump_buffer > 0.0 and coyote_time > 0.0:
+		velocity.y = BASE_JUMP + mini(GameState.jump_level, GameState.MAX_JUMP_LEVEL) * 0.72
+		jump_buffer = 0.0
+		coyote_time = 0.0
 		jumped.emit()
 	move_and_slide()
 
 	if mode == "2D":
-		position.z = move_toward(position.z, 0.0, 7.0 * delta)
+		position.z = plane_z
 		velocity.z = 0.0
 	else:
-		position.z = clampf(position.z, -3.15, 3.15)
+		position.z = clampf(position.z, depth_limits.x, depth_limits.y)
 
-	if absf(velocity.x) > 0.15:
+	if mode == "3D" and Vector2(velocity.x, velocity.z).length() > 0.15:
+		visual.rotation.y = lerp_angle(visual.rotation.y, atan2(velocity.x, velocity.z), minf(delta * 11.0, 1.0))
+	elif absf(velocity.x) > 0.15:
 		var facing_angle := PI * (0.25 if mode == "2D" else 0.5)
 		var target_yaw := facing_angle if velocity.x > 0.0 else -facing_angle
 		visual.rotation.y = lerp_angle(visual.rotation.y, target_yaw, minf(delta * 11.0, 1.0))
@@ -83,11 +96,17 @@ func _physics_process(delta: float) -> void:
 
 func set_mode(next_mode: String) -> void:
 	mode = next_mode
+	if mode == "2D":
+		plane_z = position.z
+		velocity.z = 0.0
 
 
 func reset_at(point: Vector3) -> void:
 	global_position = point
+	plane_z = point.z
 	velocity = Vector3.ZERO
+	coyote_time = 0.0
+	jump_buffer = 0.0
 	visual.visible = true
 
 

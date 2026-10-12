@@ -16,6 +16,9 @@ func _check(condition: bool, message: String) -> void:
 
 
 func _run() -> void:
+	var state: Node = root.get_node("GameState")
+	state.save_path = "user://smoke_test_save.cfg"
+	state.reset_progress()
 	var packed := load("res://scenes/main.tscn") as PackedScene
 	var main := packed.instantiate()
 	root.add_child(main)
@@ -52,6 +55,9 @@ func _run() -> void:
 	_check(world.process_mode == Node.PROCESS_MODE_DISABLED and main.hud.pause_panel.visible, "Duraklatma dünyayı durduruyor")
 	main._toggle_pause()
 	_check(world.process_mode == Node.PROCESS_MODE_INHERIT and not main.hud.pause_panel.visible, "Oyun aynı yerden devam ediyor")
+	main._notification(Node.NOTIFICATION_APPLICATION_PAUSED)
+	_check(main.is_paused and world.process_mode == Node.PROCESS_MODE_DISABLED, "Uygulama arka plana geçince otomatik duraklıyor")
+	main._toggle_pause()
 
 	player.global_position = Vector3(81.8, 0.15, 0.0)
 	await physics_frame
@@ -93,7 +99,7 @@ func _run() -> void:
 
 	player.global_position = Vector3(311, 0.15, 0)
 	await create_timer(0.3).timeout
-	_check(world.is_finished and main.hud.finish_panel.visible, "Bitişte sonuç ekranı açılıyor")
+	_check(not world.is_finished and not main.hud.finish_panel.visible, "Bulmacalar çözülmeden bitiş ödülü alınamıyor")
 	_check(main.current_world == world, "Bitişte dünya kendiliğinden sıfırlanmıyor")
 
 	if failures == 0:

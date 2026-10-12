@@ -37,6 +37,8 @@ func _ready() -> void:
 	hud.camera_requested.connect(_on_camera_requested)
 	hud.pause_requested.connect(_toggle_pause)
 	hud.restart_requested.connect(_restart)
+	hud.shop_requested.connect(_on_shop_requested)
+	hud.settings_changed.connect(func() -> void: current_world.apply_graphics())
 	GameState.message_requested.connect(hud.show_message)
 	GameState.coins_changed.connect(hud.set_coins)
 	GameState.upgrade_changed.connect(hud.set_upgrade)
@@ -51,12 +53,15 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if is_instance_valid(hud) and is_instance_valid(current_world):
 		hud.set_progress(current_world.player.global_position.x / 311.0)
+		if has_started:
+			hud.set_run_info(current_world.course, current_world.run_time, current_world.deaths)
 
 
 func _start_game() -> void:
 	if has_started:
 		return
 	has_started = true
+	current_world.course.start_run()
 	current_world.process_mode = Node.PROCESS_MODE_INHERIT
 	hud.begin_gameplay()
 	_play_sound(SFX_CLICK)
@@ -64,7 +69,8 @@ func _start_game() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause") and not event.is_echo():
-		_toggle_pause()
+		if not hud.close_modal():
+			_toggle_pause()
 		get_viewport().set_input_as_handled()
 
 
@@ -77,6 +83,8 @@ func _on_player_hurt() -> void:
 	_play_sound(SFX_HURT)
 	if is_instance_valid(hud):
 		hud.flash_damage()
+	if OS.has_feature("mobile") and GameState.settings.vibration:
+		Input.vibrate_handheld(65)
 
 
 func _on_mode_changed(mode: String) -> void:
@@ -100,11 +108,17 @@ func _on_level_completed() -> void:
 	_play_sound(SFX_FINISH)
 	current_world.set_deferred("process_mode", Node.PROCESS_MODE_DISABLED)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	hud.show_completion(current_world.run_time, current_world.collected_coins)
+	var result := GameState.record_run(current_world.run_time, current_world.deaths, current_world.course.secrets_found.size())
+	hud.show_completion(current_world.run_time, current_world.collected_coins, current_world.deaths, current_world.course.secrets_found.size(), result)
 
 
 func _on_upgrade_requested() -> void:
 	if GameState.buy_jump_upgrade():
+		_play_sound(SFX_CLICK)
+
+
+func _on_shop_requested(id: String) -> void:
+	if GameState.buy_upgrade(id):
 		_play_sound(SFX_CLICK)
 
 
@@ -119,7 +133,9 @@ func _toggle_pause() -> void:
 		return
 	is_paused = not is_paused
 	current_world.process_mode = Node.PROCESS_MODE_DISABLED if is_paused else Node.PROCESS_MODE_INHERIT
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if not is_paused and current_mode == "3D" and not OS.has_feature("mobile") else Input.MOUSE_MODE_VISIBLE
+	for action in ["move_left", "move_right", "move_forward", "move_back", "jump", "dimension_toggle", "interact"]:
+		Input.action_release(action)
 	hud.set_paused(is_paused)
 	_play_sound(SFX_CLICK)
 
@@ -130,9 +146,18 @@ func _restart() -> void:
 
 
 func _play_sound(stream: AudioStream) -> void:
+	if float(GameState.settings.effects) <= 0.0:
+		return
 	var audio := AudioStreamPlayer.new()
 	audio.stream = stream
-	audio.volume_db = -8.0
+	audio.volume_db = linear_to_db(float(GameState.settings.effects)) - 6.0
 	add_child(audio)
 	audio.finished.connect(audio.queue_free)
 	audio.play()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_PAUSED:
+		GameState.save_game()
+		if has_started and not is_paused and not current_world.is_finished:
+			_toggle_pause()
