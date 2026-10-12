@@ -37,7 +37,7 @@ func set_upgrade(level: int) -> void:
 
 
 func set_mode_2d() -> void:
-	mode_label.text = "2D PLATFORM"
+	mode_label.text = "2D BAKIŞ • 3D DÜNYA"
 	camera_button.visible = false
 	up_button.visible = false
 	down_button.visible = false
@@ -89,7 +89,7 @@ func _build_hud() -> void:
 	top_bar.add_child(title)
 
 	mode_label = Label.new()
-	mode_label.text = "2D PLATFORM"
+	mode_label.text = "2D BAKIŞ • 3D DÜNYA"
 	mode_label.position = Vector2(200, 23)
 	mode_label.add_theme_font_size_override("font_size", 17)
 	mode_label.add_theme_color_override("font_color", Color("a8bce8"))
@@ -115,7 +115,7 @@ func _build_hud() -> void:
 
 	message_label = Label.new()
 	message_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	message_label.position = Vector2(-340, 86)
+	message_label.position = Vector2(-340, 145)
 	message_label.size = Vector2(680, 48)
 	message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	message_label.add_theme_font_size_override("font_size", 21)
@@ -127,16 +127,16 @@ func _build_hud() -> void:
 
 
 func _build_touch_controls() -> void:
-	var left := _make_action_button("◀", "move_left")
+	var left := _make_action_button("<", "move_left")
 	add_child(left)
 
-	var right := _make_action_button("▶", "move_right")
+	var right := _make_action_button(">", "move_right")
 	add_child(right)
 
-	up_button = _make_action_button("▲", "move_forward")
+	up_button = _make_action_button("^", "move_forward")
 	add_child(up_button)
 
-	down_button = _make_action_button("▼", "move_back")
+	down_button = _make_action_button("v", "move_back")
 	add_child(down_button)
 
 	var jump := _make_action_button("ZIPLA", "jump")

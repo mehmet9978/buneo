@@ -1,16 +1,21 @@
 extends Node
 
-const World2DScene := preload("res://scripts/world_2d.gd")
-const World3DScene := preload("res://scripts/world_3d.gd")
+const ContinuousWorld := preload("res://scripts/continuous_world.gd")
 const HUDScene := preload("res://scripts/hud.gd")
 
-var current_world: Node
+var current_world: Node3D
 var hud: CanvasLayer
 var current_mode := "2D"
-var transition_busy := false
 
 
 func _ready() -> void:
+	current_world = ContinuousWorld.new()
+	add_child(current_world)
+	current_world.mode_changed.connect(_on_mode_changed)
+	current_world.camera_mode_changed.connect(_on_camera_mode_changed)
+	current_world.message_requested.connect(_on_message_requested)
+	current_world.level_completed.connect(_on_level_completed)
+
 	hud = HUDScene.new()
 	add_child(hud)
 	hud.upgrade_requested.connect(_on_upgrade_requested)
@@ -20,57 +25,30 @@ func _ready() -> void:
 	GameState.upgrade_changed.connect(hud.set_upgrade)
 	hud.set_coins(GameState.coins)
 	hud.set_upgrade(GameState.jump_level)
-	show_2d_world()
-
-
-func show_2d_world() -> void:
-	current_mode = "2D"
-	_clear_world()
-	current_world = World2DScene.new()
-	add_child(current_world)
-	move_child(current_world, 0)
-	current_world.request_3d.connect(_on_request_3d)
 	hud.set_mode_2d()
-	hud.show_message("ALTINLARI TOPLA • BOYUT KAPISINA ULAŞ")
+	hud.show_message("TEK DÜNYA • MOR KAPIDA KAMERA KARAKTERİN ARKASINA DÖNER")
 
 
-func show_3d_world() -> void:
-	current_mode = "3D"
-	_clear_world()
-	current_world = World3DScene.new()
-	add_child(current_world)
-	move_child(current_world, 0)
-	current_world.request_2d.connect(_on_request_2d)
-	current_world.camera_mode_changed.connect(hud.set_camera_mode)
-	hud.set_mode_3d()
-	hud.show_message("3D BÖLGE: KIRMIZI ÇIKIŞ KAPISINI BUL")
+func _on_mode_changed(mode: String) -> void:
+	current_mode = mode
+	if mode == "3D":
+		hud.set_mode_3d()
+	else:
+		hud.set_mode_2d()
 
 
-func _clear_world() -> void:
-	if is_instance_valid(current_world):
-		current_world.queue_free()
-		remove_child(current_world)
-	current_world = null
+func _on_camera_mode_changed(mode: String) -> void:
+	hud.set_camera_mode(mode)
 
 
-func _on_request_3d() -> void:
-	if transition_busy:
-		return
-	transition_busy = true
-	hud.play_transition("BOYUT DEĞİŞİYOR: 2D → 3D")
-	await get_tree().create_timer(0.55).timeout
-	show_3d_world()
-	transition_busy = false
+func _on_message_requested(message: String) -> void:
+	hud.show_message(message)
 
 
-func _on_request_2d() -> void:
-	if transition_busy:
-		return
-	transition_busy = true
-	hud.play_transition("BÖLÜM TAMAMLANDI!")
-	await get_tree().create_timer(0.7).timeout
-	show_2d_world()
-	transition_busy = false
+func _on_level_completed() -> void:
+	hud.play_transition("BÖLÜM TAMAMLANDI • +15 ALTIN")
+	await get_tree().create_timer(1.4).timeout
+	get_tree().reload_current_scene()
 
 
 func _on_upgrade_requested() -> void:
@@ -78,5 +56,5 @@ func _on_upgrade_requested() -> void:
 
 
 func _on_camera_requested() -> void:
-	if current_mode == "3D" and is_instance_valid(current_world):
+	if current_mode == "3D":
 		current_world.toggle_camera()

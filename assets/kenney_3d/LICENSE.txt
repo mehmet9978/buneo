@@ -1,0 +1,10 @@
+Animated Characters Protagonists by Kenney
+https://kenney.nl/assets/animated-characters-protagonists
+
+Nature Kit by Kenney
+https://kenney.nl/assets/nature-kit
+
+Both packs are Creative Commons Zero (CC0) 1.0.
+https://creativecommons.org/publicdomain/zero/1.0/
+
+The hero.glb file combines the character model, cyborgFemaleA skin and idle, run, jump animations from the Animated Characters Protagonists pack.
