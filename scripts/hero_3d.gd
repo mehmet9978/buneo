@@ -1,6 +1,7 @@
 extends CharacterBody3D
 
 signal fell
+signal jumped
 
 const HERO_SCENE := preload("res://assets/kenney_3d/hero.glb")
 const SPEED := 6.7
@@ -35,11 +36,12 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	var side := Input.get_axis("move_left", "move_right")
+	var horizontal := Input.get_axis("move_left", "move_right")
 	var depth := 0.0
 	if mode == "3D":
-		depth = Input.get_axis("move_forward", "move_back")
-	var direction := Vector2(side, depth).normalized()
+		depth = horizontal
+		horizontal = Input.get_axis("move_back", "move_forward")
+	var direction := Vector2(horizontal, depth).normalized()
 	velocity.x = move_toward(velocity.x, direction.x * SPEED, 28.0 * delta)
 	velocity.z = move_toward(velocity.z, direction.y * SPEED, 28.0 * delta)
 
@@ -47,6 +49,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y -= GRAVITY * delta
 	if Input.is_action_just_pressed("jump") and is_on_floor():
 		velocity.y = BASE_JUMP + GameState.jump_level * 0.72
+		jumped.emit()
 	move_and_slide()
 
 	if mode == "2D":

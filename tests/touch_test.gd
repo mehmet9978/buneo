@@ -57,4 +57,7 @@ func _run() -> void:
 		return
 	_touch(0, left_center, false)
 	print("BUNEO_MULTI_TOUCH_OK")
+	await create_timer(0.25).timeout
+	main.queue_free()
+	await process_frame
 	quit()

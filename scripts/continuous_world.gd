@@ -4,6 +4,10 @@ signal mode_changed(mode: String)
 signal camera_mode_changed(mode: String)
 signal message_requested(text: String)
 signal level_completed
+signal coin_collected
+signal checkpoint_activated
+signal player_hurt
+signal health_changed(health: int)
 
 const Hero3D := preload("res://scripts/hero_3d.gd")
 const TREE := preload("res://assets/kenney_3d/nature/tree_default.glb")
@@ -24,6 +28,8 @@ const ISLANDS: Array[Vector2] = [
 	Vector2(171, 199), Vector2(202, 228), Vector2(231, 258),
 	Vector2(261, 286), Vector2(289, 315)
 ]
+const CHECKPOINTS := [39.0, 73.0, 99.0, 153.0, 187.0, 245.0, 299.0]
+const HAZARDS := [Vector3(47, 0.65, 0), Vector3(63, 0.65, 0), Vector3(129, 0.65, -1.7), Vector3(179, 0.65, 1.8), Vector3(211, 0.65, -1.5), Vector3(271, 0.65, 0)]
 
 var player: CharacterBody3D
 var camera: Camera3D
@@ -42,6 +48,12 @@ var clouds: Array[Node3D] = []
 var coins: Array[Area3D] = []
 var coin_heights: Array[float] = []
 var is_finished := false
+var health := 3
+var max_health := 3
+var collected_coins := 0
+var run_time := 0.0
+var invulnerability := 0.0
+var hazards: Array[Node3D] = []
 
 
 func _ready() -> void:
@@ -51,6 +63,9 @@ func _ready() -> void:
 	_build_islands()
 	_build_clouds()
 	_build_gates()
+	_build_checkpoints()
+	_build_hazards()
+	_build_bonus_platforms()
 	player = Hero3D.new()
 	player.position = checkpoint
 	player.fell.connect(_on_player_fell)
@@ -65,6 +80,12 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	world_time += delta
+	run_time += delta
+	invulnerability = maxf(0.0, invulnerability - delta)
+	if player.global_position.x >= 81.8 and player.global_position.x < 225.8 and mode == "2D":
+		transition_to_3d()
+	elif player.global_position.x >= 225.8 and mode == "3D":
+		transition_to_2d()
 	for index in range(swayers.size()):
 		var node := swayers[index]
 		if is_instance_valid(node):
@@ -78,6 +99,8 @@ func _process(delta: float) -> void:
 		if is_instance_valid(coin) and not coin.is_queued_for_deletion():
 			coin.rotation.y += delta * 2.0
 			coin.position.y = coin_heights[index] + sin(world_time * 2.1 + index) * 0.18
+	for index in range(hazards.size()):
+		hazards[index].rotation.y += delta * (1.3 + index % 3 * 0.3)
 	_update_camera(delta)
 
 
@@ -113,7 +136,7 @@ func transition_to_3d() -> void:
 	player.set_mode(mode)
 	checkpoint = Vector3(89, 0.1, 0)
 	mode_changed.emit(mode)
-	message_requested.emit("AYNI DÜNYA, YENİ BAKIŞ AÇISI • DERİNLİK AÇILDI")
+	message_requested.emit("3D AÇILDI • YUKARI İLERİ, SAĞ/SOL YAN HAREKET")
 	if not OS.has_feature("mobile"):
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -201,7 +224,8 @@ func _build_landscape() -> void:
 
 
 func _build_islands() -> void:
-	for island in ISLANDS:
+	for island_index in range(ISLANDS.size()):
+		var island := ISLANDS[island_index]
 		var center_x := (island.x + island.y) * 0.5
 		var width := island.y - island.x
 		var ground := StaticBody3D.new()
@@ -213,8 +237,10 @@ func _build_islands() -> void:
 		shape.size = Vector3(width, 1.3, 9.0)
 		collision.shape = shape
 		ground.add_child(collision)
-		_add_box(ground, Vector3.ZERO, shape.size, Color("6d4d36"))
-		_add_box(ground, Vector3(0, 0.66, 0), Vector3(width, 0.11, 9.05), Color("429247"))
+		var dirt_color := Color("6d4d36") if island_index < 3 else (Color("5b5360") if island_index < 8 else Color("805437"))
+		var grass_color := Color("429247") if island_index < 3 else (Color("398d72") if island_index < 8 else Color("8b9d43"))
+		_add_box(ground, Vector3.ZERO, shape.size, dirt_color)
+		_add_box(ground, Vector3(0, 0.66, 0), Vector3(width, 0.11, 9.05), grass_color)
 		add_child(ground)
 		_decorate_island(island)
 		_add_island_coins(island)
@@ -289,6 +315,8 @@ func _add_coin(location: Vector3) -> void:
 	area.body_entered.connect(func(body: Node3D) -> void:
 		if body == player:
 			GameState.add_coin()
+			collected_coins += 1
+			coin_collected.emit()
 			area.queue_free()
 	)
 	add_child(area)
@@ -324,10 +352,19 @@ func _build_gates() -> void:
 	finish.collision_mask = 1
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(1.5, 3.6, 8.0)
+	shape.size = Vector3(1.5, 24.0, 8.0)
 	collision.shape = shape
 	finish.add_child(collision)
-	_add_box(finish, Vector3(0, 2.0, 0), Vector3(2.0, 0.3, 8.0), Color("ffe267"), true)
+	_add_box(finish, Vector3(-1.4, 0, 0), Vector3(0.35, 3.8, 0.35), Color("ffe267"), true)
+	_add_box(finish, Vector3(1.4, 0, 0), Vector3(0.35, 3.8, 0.35), Color("ffe267"), true)
+	_add_box(finish, Vector3(0, 1.92, 0), Vector3(3.15, 0.32, 0.4), Color("fff3b0"), true)
+	var finish_title := Label3D.new()
+	finish_title.text = "BİTİŞ"
+	finish_title.font_size = 72
+	finish_title.pixel_size = 0.006
+	finish_title.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	finish_title.position = Vector3(0, 2.55, 0)
+	finish.add_child(finish_title)
 	finish.body_entered.connect(func(body: Node3D) -> void:
 		if body == player and not is_finished:
 			is_finished = true
@@ -337,6 +374,80 @@ func _build_gates() -> void:
 	add_child(finish)
 
 
+func _build_checkpoints() -> void:
+	for x in CHECKPOINTS:
+		var flag := Node3D.new()
+		flag.position = Vector3(x, 0, -3.65)
+		_add_box(flag, Vector3(0, 1.15, 0), Vector3(0.12, 2.3, 0.12), Color("dde8ea"))
+		_add_box(flag, Vector3(0.46, 1.88, 0), Vector3(0.88, 0.52, 0.08), Color("65d9d2"), true)
+		add_child(flag)
+		var area := Area3D.new()
+		area.position = Vector3(x, 1.2, 0)
+		area.collision_layer = 4
+		area.collision_mask = 1
+		var collision := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = Vector3(1.4, 2.4, 8.5)
+		collision.shape = shape
+		area.add_child(collision)
+		area.body_entered.connect(func(body: Node3D) -> void:
+			if body != player or x <= checkpoint.x:
+				return
+			checkpoint = Vector3(x + 1.5, 0.1, 0)
+			(flag.get_child(1) as MeshInstance3D).material_override = _material(Color("ffe28c"), true)
+			checkpoint_activated.emit()
+			message_requested.emit("KONTROL NOKTASI • %d%%" % int(x / 311.0 * 100.0))
+		)
+		add_child(area)
+
+
+func _build_hazards() -> void:
+	for position in HAZARDS:
+		var spinner := Node3D.new()
+		spinner.position = position
+		var area := Area3D.new()
+		area.collision_layer = 4
+		area.collision_mask = 1
+		var collision := CollisionShape3D.new()
+		var shape := SphereShape3D.new()
+		shape.radius = 0.68
+		collision.shape = shape
+		area.add_child(collision)
+		var core := MeshInstance3D.new()
+		var core_mesh := SphereMesh.new()
+		core_mesh.radius = 0.55
+		core_mesh.height = 1.1
+		core.mesh = core_mesh
+		core.material_override = _material(Color("ee4d61"), true)
+		area.add_child(core)
+		for direction in [-1.0, 1.0]:
+			_add_box(area, Vector3(direction * 0.48, 0, 0), Vector3(0.75, 0.16, 0.16), Color("631e45"))
+		area.body_entered.connect(func(body: Node3D) -> void:
+			if body == player:
+				_take_hit(false)
+		)
+		spinner.add_child(area)
+		add_child(spinner)
+		hazards.append(spinner)
+
+
+func _build_bonus_platforms() -> void:
+	for x in [19.0, 69.0, 136.0, 193.0, 275.0]:
+		var platform := StaticBody3D.new()
+		platform.position = Vector3(x, 1.05, 0)
+		platform.collision_layer = 2
+		platform.collision_mask = 1
+		var collision := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = Vector3(3.8, 0.35, 2.8)
+		collision.shape = shape
+		platform.add_child(collision)
+		_add_box(platform, Vector3.ZERO, shape.size, Color("67607a"))
+		_add_box(platform, Vector3(0, 0.19, 0), Vector3(3.9, 0.12, 2.9), Color("bd9d67"))
+		add_child(platform)
+		_add_coin(Vector3(x, 2.7, 0))
+
+
 func _add_gate(x: float, color: Color, to_3d: bool) -> void:
 	var gate := Area3D.new()
 	gate.position = Vector3(x, 1.8, 0)
@@ -344,7 +455,7 @@ func _add_gate(x: float, color: Color, to_3d: bool) -> void:
 	gate.collision_mask = 1
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(1.3, 3.6, 8.2)
+	shape.size = Vector3(1.3, 24.0, 8.2)
 	collision.shape = shape
 	gate.add_child(collision)
 	_add_box(gate, Vector3(-0.9, 0, 0), Vector3(0.24, 3.6, 0.28), color, true)
@@ -383,5 +494,25 @@ func _material(color: Color, glowing: bool = false) -> StandardMaterial3D:
 
 
 func _on_player_fell() -> void:
-	player.reset_at(checkpoint)
-	message_requested.emit("KONTROL NOKTASINDAN DEVAM")
+	_take_hit(true)
+
+
+func _take_hit(fell: bool) -> void:
+	if invulnerability > 0.0 or is_finished:
+		if fell and not is_finished:
+			player.reset_at(checkpoint)
+		return
+	invulnerability = 1.3
+	health -= 1
+	player_hurt.emit()
+	if health <= 0:
+		health = max_health
+		player.reset_at(checkpoint)
+		message_requested.emit("YENİDEN DENE • KONTROL NOKTASINDAN DEVAM")
+	elif fell:
+		player.reset_at(checkpoint)
+		message_requested.emit("DÜŞTÜN • KONTROL NOKTASINDAN DEVAM")
+	else:
+		player.velocity = Vector3(-3.0, 4.5, 0)
+		message_requested.emit("DİKKAT • TEHLİKEYE DOKUNDUN")
+	health_changed.emit(health)

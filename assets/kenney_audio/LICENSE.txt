@@ -1,0 +1,8 @@
+Kenney Interface Sounds 1.0
+https://kenney.nl/assets/interface-sounds
+
+Created and distributed by Kenney. Released under Creative Commons Zero (CC0 1.0):
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Used sounds: bong_001, click_001, confirmation_001, glitch_001,
+open_001, pluck_001, select_001.
