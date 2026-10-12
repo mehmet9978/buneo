@@ -3,7 +3,7 @@ extends CharacterBody3D
 signal fell
 signal jumped
 
-const HERO_SCENE := preload("res://assets/kenney_3d/hero.glb")
+const HERO_SCENE := preload("res://assets/quaternius_platformer/hero.glb")
 const SPEED := 6.7
 const GRAVITY := 23.0
 const BASE_JUMP := 8.8
@@ -26,11 +26,12 @@ func _ready() -> void:
 	add_child(collision)
 
 	visual = HERO_SCENE.instantiate()
-	visual.scale = Vector3.ONE * 0.5
+	visual.scale = Vector3.ONE * 0.42
+	visual.position.y = 0.42
 	visual.rotation.y = PI * 0.25
 	add_child(visual)
 	animator = visual.find_child("AnimationPlayer", true, false) as AnimationPlayer
-	for name in ["Idle", "Run"]:
+	for name in ["Idle", "Run", "Jump_Idle"]:
 		animator.get_animation(name).loop_mode = Animation.LOOP_LINEAR
 	_play_animation("Idle")
 
@@ -69,11 +70,12 @@ func _physics_process(delta: float) -> void:
 		visual.rotation.y = lerp_angle(visual.rotation.y, PI * 0.5, minf(delta * 5.0, 1.0))
 
 	if not is_on_floor():
-		_play_animation("Jump")
+		_play_animation("Jump" if velocity.y > 2.0 else "Jump_Idle")
 	elif direction.length_squared() > 0.04:
 		_play_animation("Run")
 	else:
 		_play_animation("Idle")
+	animator.speed_scale = 1.35 if current_animation == "Run" else 1.0
 
 	if global_position.y < -11.0:
 		fell.emit()

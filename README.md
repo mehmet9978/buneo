@@ -3,6 +3,8 @@
 Godot 4 ile geliştirilen Android odaklı, tek bir 3D dünya içinde 2D bakış ve TPS/FPS kamera geçişi yapan platform oyunu.
 Android uygulaması yatay ekranda açılır. Ekran düğmeleri aynı anda hareket ve zıplama için çoklu dokunmayı destekler.
 
+0.4 sürümünde canlı dünya arka planlı ana menü, kart tabanlı mobil HUD, yeni sonuç/duraklatma ekranları ve doğal koşu-zıplama animasyonlarına sahip yeni maskot karakter eklendi.
+
 ## Oynanış
 
 - Yaklaşık 315 oyun birimi uzunluğundaki parkurda altınları topla ve `ZIPLAMA +` ile kalıcı yükseltme satın al.
@@ -10,7 +12,7 @@ Android uygulaması yatay ekranda açılır. Ekran düğmeleri aynı anda hareke
 - Mor kapıda kamera kesintisiz olarak karakterin arkasına döner ve derinlik yönünde hareket açılır. Dünya ve oyuncu yeniden oluşturulmaz.
 - 3D görünümde `C` veya `KAMERA` düğmesi FPS/TPS arasında geçiş yapar. Turuncu kapıda kamera yeniden karşıdan bakar.
 - Parkurda üç farklı zemin tonu, atlanabilir dönen engeller, yükseltilmiş platformlar, kontrol bayrakları ve can sistemi bulunur. Düşman yoktur.
-- Canlı çevrede sürüklenen bulutlar, rüzgârla sallanan çimen ve çiçekler, ağaçlar, kayalar ve mantarlar bulunur.
+- Canlı çevrede sürüklenen bulutlar, atmosferik gökyüzü, rüzgârla sallanan çimenler, meyveli ağaçlar, çalılar, kayalar, çitler, sandıklar ve uzak kuleler bulunur.
 - Uçuruma düşüldüğünde veya canlar bitince son kontrol noktasından devam edilir. Bitiş kapısı 15 altın verir ve süre/altın özetini gösterir.
 - Duraklatma ve yeniden oynama ekranları ile altın, zıplama, hasar, kontrol noktası ve kamera geçişi sesleri bulunur.
 
@@ -38,4 +40,4 @@ Android dışa aktarma ayarı `export_presets.cfg` içindedir. APK üretmek içi
 
 ## Görsel varlıklar
 
-Animasyonlu karakter [Kenney Animated Characters Protagonists](https://kenney.nl/assets/animated-characters-protagonists), ağaç/çimen/çiçek/kaya modelleri [Kenney Nature Kit](https://kenney.nl/assets/nature-kit) paketlerinden alındı. Sesler [Kenney Interface Sounds](https://kenney.nl/assets/interface-sounds) paketindendir. Kaynak varlıklar [CC0 1.0](assets/kenney_3d/LICENSE.txt) ve [ses lisansı](assets/kenney_audio/LICENSE.txt) kapsamındadır.
+Karakter ve yeni çevre modelleri [Quaternius Ultimate Platformer Pack](https://quaternius.com/packs/ultimateplatformer.html) paketinden alınmıştır ve [CC0 1.0](assets/quaternius_platformer/License.txt) kapsamındadır. Sesler [Kenney Interface Sounds](https://kenney.nl/assets/interface-sounds) paketindendir. Arayüzde Google Fonts üzerinden Bungee ve Nunito Sans kullanılır; lisansları `assets/fonts` klasöründedir. Önceki Kenney kaynakları da depoda kendi CC0 lisanslarıyla korunur.

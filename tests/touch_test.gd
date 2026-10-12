@@ -17,6 +17,8 @@ func _run() -> void:
 	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	root.add_child(main)
 	await process_frame
+	main._start_game()
+	await process_frame
 	var right: TouchScreenButton = main.hud.touch_buttons[1]
 	var left: TouchScreenButton = main.hud.touch_buttons[0]
 	var jump: TouchScreenButton = main.hud.touch_buttons[4]

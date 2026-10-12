@@ -14,6 +14,7 @@ var current_world: Node3D
 var hud: CanvasLayer
 var current_mode := "2D"
 var is_paused := false
+var has_started := false
 
 
 func _ready() -> void:
@@ -31,6 +32,7 @@ func _ready() -> void:
 
 	hud = HUDScene.new()
 	add_child(hud)
+	hud.start_requested.connect(_start_game)
 	hud.upgrade_requested.connect(_on_upgrade_requested)
 	hud.camera_requested.connect(_on_camera_requested)
 	hud.pause_requested.connect(_toggle_pause)
@@ -42,12 +44,22 @@ func _ready() -> void:
 	hud.set_upgrade(GameState.jump_level)
 	hud.set_mode_2d()
 	hud.set_health(current_world.health)
-	hud.show_message("TEK DÜNYA • MOR KAPIDA KAMERA KARAKTERİN ARKASINA DÖNER")
+	current_world.process_mode = Node.PROCESS_MODE_DISABLED
+	hud.show_main_menu()
 
 
 func _process(_delta: float) -> void:
 	if is_instance_valid(hud) and is_instance_valid(current_world):
 		hud.set_progress(current_world.player.global_position.x / 311.0)
+
+
+func _start_game() -> void:
+	if has_started:
+		return
+	has_started = true
+	current_world.process_mode = Node.PROCESS_MODE_INHERIT
+	hud.begin_gameplay()
+	_play_sound(SFX_CLICK)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -103,7 +115,7 @@ func _on_camera_requested() -> void:
 
 
 func _toggle_pause() -> void:
-	if current_world.is_finished:
+	if current_world.is_finished or not has_started:
 		return
 	is_paused = not is_paused
 	current_world.process_mode = Node.PROCESS_MODE_DISABLED if is_paused else Node.PROCESS_MODE_INHERIT

@@ -10,17 +10,29 @@ signal player_hurt
 signal health_changed(health: int)
 
 const Hero3D := preload("res://scripts/hero_3d.gd")
-const TREE := preload("res://assets/kenney_3d/nature/tree_default.glb")
-const OAK := preload("res://assets/kenney_3d/nature/tree_oak.glb")
-const PINE := preload("res://assets/kenney_3d/nature/tree_pineRoundA.glb")
-const GRASS := preload("res://assets/kenney_3d/nature/grass_large.glb")
-const BUSH := preload("res://assets/kenney_3d/nature/plant_bush.glb")
-const RED_FLOWER := preload("res://assets/kenney_3d/nature/flower_redA.glb")
-const YELLOW_FLOWER := preload("res://assets/kenney_3d/nature/flower_yellowA.glb")
-const ROCK := preload("res://assets/kenney_3d/nature/rock_largeA.glb")
-const SMALL_ROCK := preload("res://assets/kenney_3d/nature/rock_smallA.glb")
-const MUSHROOM := preload("res://assets/kenney_3d/nature/mushroom_red.glb")
-const LOG := preload("res://assets/kenney_3d/nature/log.glb")
+const TREE := preload("res://assets/quaternius_platformer/Tree.gltf")
+const FRUIT_TREE := preload("res://assets/quaternius_platformer/Tree_Fruit.gltf")
+const GRASS := preload("res://assets/quaternius_platformer/Grass_1.gltf")
+const GRASS_2 := preload("res://assets/quaternius_platformer/Grass_2.gltf")
+const GRASS_3 := preload("res://assets/quaternius_platformer/Grass_3.gltf")
+const BUSH := preload("res://assets/quaternius_platformer/Bush.gltf")
+const FRUIT_BUSH := preload("res://assets/quaternius_platformer/Bush_Fruit.gltf")
+const ROCK := preload("res://assets/quaternius_platformer/Rock_1.gltf")
+const SMALL_ROCK := preload("res://assets/quaternius_platformer/Rock_2.gltf")
+const CLOUD_1 := preload("res://assets/quaternius_platformer/Cloud_1.gltf")
+const CLOUD_2 := preload("res://assets/quaternius_platformer/Cloud_2.gltf")
+const CLOUD_3 := preload("res://assets/quaternius_platformer/Cloud_3.gltf")
+const FENCE := preload("res://assets/quaternius_platformer/Fence_Middle.gltf")
+const TOWER := preload("res://assets/quaternius_platformer/Tower.gltf")
+const CHEST := preload("res://assets/quaternius_platformer/Chest.gltf")
+const CRATE := preload("res://assets/quaternius_platformer/Cube_Crate.gltf")
+const PLATFORM_VISUAL := preload("res://assets/quaternius_platformer/Cube_Grass_Single.gltf")
+const COIN_VISUAL := preload("res://assets/quaternius_platformer/Coin.gltf")
+const SAW_VISUAL := preload("res://assets/quaternius_platformer/Hazard_Saw.gltf")
+const GOAL_FLAG := preload("res://assets/quaternius_platformer/Goal_Flag.gltf")
+const GEM_VISUAL := preload("res://assets/quaternius_platformer/Gem_Blue.gltf")
+const STAR_VISUAL := preload("res://assets/quaternius_platformer/Star.gltf")
+const ARROW_VISUAL := preload("res://assets/quaternius_platformer/Arrow.gltf")
 
 const ISLANDS: Array[Vector2] = [
 	Vector2(0, 28), Vector2(31, 54), Vector2(57, 84),
@@ -193,12 +205,26 @@ func _update_camera(delta: float) -> void:
 func _build_sky_and_light() -> void:
 	var world_environment := WorldEnvironment.new()
 	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("8bd7e9")
+	var sky_material := ProceduralSkyMaterial.new()
+	sky_material.sky_top_color = Color("4faeda")
+	sky_material.sky_horizon_color = Color("b9f0e5")
+	sky_material.ground_bottom_color = Color("2f7890")
+	sky_material.ground_horizon_color = Color("9dd8c3")
+	sky_material.sun_angle_max = 18.0
+	sky_material.sun_curve = 0.08
+	var sky := Sky.new()
+	sky.sky_material = sky_material
+	environment.background_mode = Environment.BG_SKY
+	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color("d9ecdf")
-	environment.ambient_light_energy = 0.36
+	environment.ambient_light_energy = 0.44
 	environment.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+	environment.fog_enabled = true
+	environment.fog_light_color = Color("b6e4dc")
+	environment.fog_light_energy = 0.65
+	environment.fog_density = 0.0025
+	environment.fog_sky_affect = 0.22
 	world_environment.environment = environment
 	add_child(world_environment)
 	var sun := DirectionalLight3D.new()
@@ -221,6 +247,11 @@ func _build_landscape() -> void:
 		hill.position = Vector3(index * 30 - 9, -3.7, -19)
 		hill.material_override = _material(Color("4c8375") if index % 2 == 0 else Color("6d9b80"))
 		add_child(hill)
+	for x in range(5, 315, 11):
+		var back_tree := _place_model(TREE if x % 3 else FRUIT_TREE, Vector3(x + rng.randf_range(-2.0, 2.0), -1.5, -11.5), rng.randf_range(0.54, 0.7))
+		_register_sway(back_tree)
+	for x in [72.0, 160.0, 282.0]:
+		_place_model(TOWER, Vector3(x, -0.6, -13.5), 0.47)
 
 
 func _build_islands() -> void:
@@ -241,40 +272,46 @@ func _build_islands() -> void:
 		var grass_color := Color("429247") if island_index < 3 else (Color("398d72") if island_index < 8 else Color("8b9d43"))
 		_add_box(ground, Vector3.ZERO, shape.size, dirt_color)
 		_add_box(ground, Vector3(0, 0.66, 0), Vector3(width, 0.11, 9.05), grass_color)
+		var stripe_color := Color("b18b60") if island_index < 3 else (Color("8a7792") if island_index < 8 else Color("c99a5b"))
+		for band in range(3):
+			_add_box(ground, Vector3(0, -0.44 + band * 0.36, 4.53), Vector3(width, 0.09, 0.07), stripe_color)
+		_add_box(ground, Vector3(0, 0.63, 4.54), Vector3(width, 0.11, 0.16), Color("a5cf62") if island_index < 3 else grass_color.lightened(0.2))
 		add_child(ground)
 		_decorate_island(island)
 		_add_island_coins(island)
 
 
 func _decorate_island(island: Vector2) -> void:
-	for x in range(int(island.x) + 3, int(island.y) - 2, 3):
-		var x_pos := float(x) + rng.randf_range(-0.7, 0.7)
-		var grass := _place_model(GRASS, Vector3(x_pos, 0, -2.65), rng.randf_range(0.9, 1.35))
+	for x in range(int(island.x) + 2, int(island.y) - 1, 2):
+		var x_pos := float(x) + rng.randf_range(-0.45, 0.45)
+		var grass_scene: PackedScene = [GRASS, GRASS_2, GRASS_3][x % 3]
+		var grass := _place_model(grass_scene, Vector3(x_pos, 0, -2.6 if x % 4 < 2 else 3.6), rng.randf_range(0.24, 0.36))
 		_register_sway(grass)
-		if rng.randf() < 0.55:
-			var flower_scene: PackedScene = RED_FLOWER if rng.randf() < 0.5 else YELLOW_FLOWER
-			var flower := _place_model(flower_scene, Vector3(x_pos + 1.0, 0, 2.9), rng.randf_range(1.0, 1.4))
-			_register_sway(flower)
-		if x % 9 < 3:
-			var tree_scene: PackedScene = TREE if x % 3 == 0 else (OAK if x % 2 == 0 else PINE)
-			var tree := _place_model(tree_scene, Vector3(x_pos, 0, -3.8), rng.randf_range(1.55, 2.1))
-			_register_sway(tree)
-		if rng.randf() < 0.25:
-			_place_model(BUSH, Vector3(x_pos + 0.4, 0, 3.25), rng.randf_range(1.2, 1.7))
-		if rng.randf() < 0.14:
-			var small_scene: PackedScene = SMALL_ROCK if rng.randf() < 0.65 else MUSHROOM
-			_place_model(small_scene, Vector3(x_pos - 1.0, 0, -1.8), 1.25)
-	if int(island.x) % 2 == 0:
-		_place_model(ROCK, Vector3(island.x + 1.8, 0, -3.2), 0.75)
-	else:
-		_place_model(LOG, Vector3(island.x + 2.3, 0, 3.15), 0.8)
+		if rng.randf() < 0.34:
+			var bush_scene: PackedScene = BUSH if rng.randf() < 0.7 else FRUIT_BUSH
+			var bush := _place_model(bush_scene, Vector3(x_pos + 0.75, 0, -3.35 if rng.randf() < 0.7 else 3.65), rng.randf_range(0.31, 0.44))
+			_register_sway(bush)
+		if rng.randf() < 0.24:
+			_place_model(ROCK if rng.randf() < 0.55 else SMALL_ROCK, Vector3(x_pos - 0.7, 0, -3.0 if x % 3 else 3.1), rng.randf_range(0.26, 0.43))
+	for x in range(int(island.x) + 6, int(island.y) - 2, 8):
+		var tree_scene: PackedScene = TREE if x % 3 else FRUIT_TREE
+		var tree := _place_model(tree_scene, Vector3(float(x) + rng.randf_range(-1.0, 1.0), 0, -3.65), rng.randf_range(0.44, 0.59))
+		_register_sway(tree)
+	for x in range(int(island.x) + 9, int(island.y) - 2, 13):
+		for segment in range(3):
+			_place_model(FENCE, Vector3(x + segment * 0.9, 0, -4.0), 0.45, 0.0)
+	if island.y - island.x > 26.0:
+		_place_model(CHEST if int(island.x) % 2 else CRATE, Vector3(island.y - 4.2, 0, -3.5), 0.45)
+	var midpoint := (island.x + island.y) * 0.5
+	if midpoint > 88.0 and midpoint < 225.0 and int(midpoint) % 2 == 0:
+		_place_model(GEM_VISUAL, Vector3(midpoint, 0, 3.55), 0.34)
 
 
-func _place_model(scene: PackedScene, location: Vector3, size: float) -> Node3D:
+func _place_model(scene: PackedScene, location: Vector3, size: float, yaw: float = INF) -> Node3D:
 	var instance := scene.instantiate() as Node3D
-	instance.position = location
+	instance.position = location + Vector3(0, size, 0)
 	instance.scale = Vector3.ONE * size
-	instance.rotation.y = rng.randf_range(-PI, PI)
+	instance.rotation.y = rng.randf_range(-PI, PI) if is_inf(yaw) else yaw
 	add_child(instance)
 	return instance
 
@@ -302,15 +339,8 @@ func _add_coin(location: Vector3) -> void:
 	shape.radius = 0.56
 	collision.shape = shape
 	area.add_child(collision)
-	var visual := MeshInstance3D.new()
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = 0.44
-	mesh.bottom_radius = 0.44
-	mesh.height = 0.1
-	mesh.radial_segments = 16
-	visual.mesh = mesh
-	visual.rotation.x = PI * 0.5
-	visual.material_override = _material(Color("ffd54d"), true)
+	var visual := COIN_VISUAL.instantiate() as Node3D
+	visual.scale = Vector3.ONE * 0.43
 	area.add_child(visual)
 	area.body_entered.connect(func(body: Node3D) -> void:
 		if body == player:
@@ -325,20 +355,11 @@ func _add_coin(location: Vector3) -> void:
 
 
 func _build_clouds() -> void:
-	var cloud_material := _material(Color("fffdf0"))
-	var puff_mesh := SphereMesh.new()
-	puff_mesh.radius = 1.0
-	puff_mesh.height = 2.0
 	for index in range(18):
-		var cloud := Node3D.new()
+		var cloud_scene: PackedScene = [CLOUD_1, CLOUD_2, CLOUD_3][index % 3]
+		var cloud := cloud_scene.instantiate() as Node3D
 		cloud.position = Vector3(index * 20 - 10, 12 + index % 4 * 1.2, -22 + index % 3 * 4)
-		for part in range(3):
-			var puff := MeshInstance3D.new()
-			puff.mesh = puff_mesh
-			puff.material_override = cloud_material
-			puff.position = Vector3((part - 1) * 1.45, (part % 2) * 0.3, 0)
-			puff.scale = Vector3(1.3 + part % 2 * 0.45, 0.58 + part % 2 * 0.18, 0.8)
-			cloud.add_child(puff)
+		cloud.scale = Vector3.ONE * rng.randf_range(1.1, 1.55)
 		add_child(cloud)
 		clouds.append(cloud)
 
@@ -365,6 +386,7 @@ func _build_gates() -> void:
 	finish_title.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	finish_title.position = Vector3(0, 2.55, 0)
 	finish.add_child(finish_title)
+	_place_model(GOAL_FLAG, Vector3(308.2, 0, -3.2), 0.83, 0.0)
 	finish.body_entered.connect(func(body: Node3D) -> void:
 		if body == player and not is_finished:
 			is_finished = true
@@ -378,8 +400,17 @@ func _build_checkpoints() -> void:
 	for x in CHECKPOINTS:
 		var flag := Node3D.new()
 		flag.position = Vector3(x, 0, -3.65)
-		_add_box(flag, Vector3(0, 1.15, 0), Vector3(0.12, 2.3, 0.12), Color("dde8ea"))
-		_add_box(flag, Vector3(0.46, 1.88, 0), Vector3(0.88, 0.52, 0.08), Color("65d9d2"), true)
+		var flag_visual := GOAL_FLAG.instantiate() as Node3D
+		flag_visual.position.y = 0.58
+		flag_visual.scale = Vector3.ONE * 0.58
+		flag_visual.rotation.y = 0.0
+		flag.add_child(flag_visual)
+		var beacon := OmniLight3D.new()
+		beacon.position = Vector3(0, 2.4, 0)
+		beacon.light_color = Color("67e7ed")
+		beacon.light_energy = 0.0
+		beacon.omni_range = 4.5
+		flag.add_child(beacon)
 		add_child(flag)
 		var area := Area3D.new()
 		area.position = Vector3(x, 1.2, 0)
@@ -394,7 +425,8 @@ func _build_checkpoints() -> void:
 			if body != player or x <= checkpoint.x:
 				return
 			checkpoint = Vector3(x + 1.5, 0.1, 0)
-			(flag.get_child(1) as MeshInstance3D).material_override = _material(Color("ffe28c"), true)
+			beacon.light_color = Color("ffe28c")
+			beacon.light_energy = 1.4
 			checkpoint_activated.emit()
 			message_requested.emit("KONTROL NOKTASI • %d%%" % int(x / 311.0 * 100.0))
 		)
@@ -413,15 +445,9 @@ func _build_hazards() -> void:
 		shape.radius = 0.68
 		collision.shape = shape
 		area.add_child(collision)
-		var core := MeshInstance3D.new()
-		var core_mesh := SphereMesh.new()
-		core_mesh.radius = 0.55
-		core_mesh.height = 1.1
-		core.mesh = core_mesh
-		core.material_override = _material(Color("ee4d61"), true)
+		var core := SAW_VISUAL.instantiate() as Node3D
+		core.scale = Vector3.ONE * 0.44
 		area.add_child(core)
-		for direction in [-1.0, 1.0]:
-			_add_box(area, Vector3(direction * 0.48, 0, 0), Vector3(0.75, 0.16, 0.16), Color("631e45"))
 		area.body_entered.connect(func(body: Node3D) -> void:
 			if body == player:
 				_take_hit(false)
@@ -442,8 +468,9 @@ func _build_bonus_platforms() -> void:
 		shape.size = Vector3(3.8, 0.35, 2.8)
 		collision.shape = shape
 		platform.add_child(collision)
-		_add_box(platform, Vector3.ZERO, shape.size, Color("67607a"))
-		_add_box(platform, Vector3(0, 0.19, 0), Vector3(3.9, 0.12, 2.9), Color("bd9d67"))
+		var visual := PLATFORM_VISUAL.instantiate() as Node3D
+		visual.scale = Vector3(1.7, 0.175, 1.3)
+		platform.add_child(visual)
 		add_child(platform)
 		_add_coin(Vector3(x, 2.7, 0))
 
@@ -461,6 +488,12 @@ func _add_gate(x: float, color: Color, to_3d: bool) -> void:
 	_add_box(gate, Vector3(-0.9, 0, 0), Vector3(0.24, 3.6, 0.28), color, true)
 	_add_box(gate, Vector3(0.9, 0, 0), Vector3(0.24, 3.6, 0.28), color, true)
 	_add_box(gate, Vector3(0, 1.75, 0), Vector3(2.05, 0.28, 0.28), color, true)
+	var emblem_scene: PackedScene = STAR_VISUAL if to_3d else ARROW_VISUAL
+	var emblem := emblem_scene.instantiate() as Node3D
+	emblem.position = Vector3(0, 2.75, 0)
+	emblem.scale = Vector3.ONE * (0.48 if to_3d else 0.38)
+	emblem.rotation.y = PI * 0.5
+	gate.add_child(emblem)
 	gate.body_entered.connect(func(body: Node3D) -> void:
 		if body != player:
 			return

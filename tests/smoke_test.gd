@@ -22,12 +22,16 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 
+	_check(main.hud.main_menu.visible and main.current_world.process_mode == Node.PROCESS_MODE_DISABLED, "Ana menü canlı dünyanın önünde açılıyor")
+	main._start_game()
+	await process_frame
+	_check(main.has_started and main.hud.gameplay_active and not main.hud.main_menu.visible, "OYNA düğmesi parkuru başlatıyor")
 	_check(main.current_mode == "2D", "Oyun 2D modda başlıyor")
 	var world: Node3D = main.current_world
 	var player: CharacterBody3D = world.player
 	var camera: Camera3D = world.camera
 	_check(world != null and player != null, "Tek 3D dünya ve karakter oluşturuluyor")
-	_check(player.animator.get_animation_list().has("Idle") and player.animator.get_animation_list().has("Run") and player.animator.get_animation_list().has("Jump"), "Kenney karakter animasyonları yüklendi")
+	_check(player.animator.get_animation_list().has("Idle") and player.animator.get_animation_list().has("Run") and player.animator.get_animation_list().has("Jump"), "Quaternius karakter animasyonları yüklendi")
 	_check(world.health == 3 and world.hazards.size() == 6, "Can ve kaçınılabilir tehlikeler oluşturuluyor")
 
 	player.global_position = Vector3(36, 0.15, 0)
