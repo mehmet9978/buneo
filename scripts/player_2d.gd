@@ -3,8 +3,19 @@ extends CharacterBody2D
 const SPEED := 310.0
 const BASE_JUMP := 590.0
 const GRAVITY := 1550.0
+const STAND_TEXTURE := preload("res://assets/kenney/p1_stand.png")
+const JUMP_TEXTURE := preload("res://assets/kenney/p1_jump.png")
+const WALK_TEXTURES := [
+	preload("res://assets/kenney/p1_walk01.png"),
+	preload("res://assets/kenney/p1_walk02.png"),
+	preload("res://assets/kenney/p1_walk03.png"),
+	preload("res://assets/kenney/p1_walk04.png"),
+	preload("res://assets/kenney/p1_walk05.png")
+]
 
 var spawn_position := Vector2.ZERO
+var sprite: Sprite2D
+var walk_time := 0.0
 
 
 func _ready() -> void:
@@ -26,6 +37,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y = -(BASE_JUMP + GameState.jump_level * 55.0)
 
 	move_and_slide()
+	_update_visual(delta)
 	if position.y > 900.0:
 		position = spawn_position
 		velocity = Vector2.ZERO
@@ -39,24 +51,10 @@ func _build_visual() -> void:
 	collision.shape = shape
 	add_child(collision)
 
-	var body := Polygon2D.new()
-	body.polygon = PackedVector2Array([
-		Vector2(-18, -17), Vector2(-13, -27), Vector2(0, -31),
-		Vector2(13, -27), Vector2(18, -17), Vector2(18, 24),
-		Vector2(9, 31), Vector2(-9, 31), Vector2(-18, 24)
-	])
-	body.color = Color("54e1ff")
-	add_child(body)
-
-	var visor := Polygon2D.new()
-	visor.polygon = PackedVector2Array([Vector2(-12, -17), Vector2(14, -17), Vector2(14, -7), Vector2(-12, -7)])
-	visor.color = Color("15213d")
-	add_child(visor)
-
-	var glow := PointLight2D.new()
-	glow.energy = 0.55
-	glow.texture_scale = 0.6
-	add_child(glow)
+	sprite = Sprite2D.new()
+	sprite.texture = STAND_TEXTURE
+	sprite.scale = Vector2(0.7, 0.7)
+	add_child(sprite)
 
 	var camera := Camera2D.new()
 	camera.position = Vector2(180, -80)
@@ -67,3 +65,16 @@ func _build_visual() -> void:
 	camera.limit_top = -100
 	camera.limit_bottom = 720
 	add_child(camera)
+
+
+func _update_visual(delta: float) -> void:
+	if absf(velocity.x) > 10.0:
+		sprite.flip_h = velocity.x < 0.0
+	if not is_on_floor():
+		sprite.texture = JUMP_TEXTURE
+	elif absf(velocity.x) > 20.0:
+		walk_time += delta
+		sprite.texture = WALK_TEXTURES[int(walk_time * 11.0) % WALK_TEXTURES.size()]
+	else:
+		walk_time = 0.0
+		sprite.texture = STAND_TEXTURE

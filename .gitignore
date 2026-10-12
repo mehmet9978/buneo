@@ -10,3 +10,4 @@ export/*.idsig
 .DS_Store
 *.tmp
 *.log
+tests/*.gd.uid

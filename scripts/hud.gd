@@ -10,13 +10,18 @@ var upgrade_button: Button
 var message_label: Label
 var transition_panel: ColorRect
 var transition_label: Label
-var up_button: Button
-var down_button: Button
+var up_button: TouchScreenButton
+var down_button: TouchScreenButton
+var touch_buttons: Array[TouchScreenButton] = []
+
+const TOUCH_TEXTURE := preload("res://assets/touch_button.svg")
 
 
 func _ready() -> void:
 	layer = 20
 	_build_hud()
+	get_viewport().size_changed.connect(_layout_touch_controls)
+	_layout_touch_controls()
 
 
 func set_coins(total: int) -> void:
@@ -123,30 +128,36 @@ func _build_hud() -> void:
 
 func _build_touch_controls() -> void:
 	var left := _make_action_button("◀", "move_left")
-	left.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	left.position = Vector2(26, -118)
 	add_child(left)
 
 	var right := _make_action_button("▶", "move_right")
-	right.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	right.position = Vector2(212, -118)
 	add_child(right)
 
 	up_button = _make_action_button("▲", "move_forward")
-	up_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	up_button.position = Vector2(119, -205)
 	add_child(up_button)
 
 	down_button = _make_action_button("▼", "move_back")
-	down_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	down_button.position = Vector2(119, -75)
 	add_child(down_button)
 
 	var jump := _make_action_button("ZIPLA", "jump")
-	jump.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	jump.position = Vector2(-155, -135)
-	jump.size = Vector2(125, 105)
 	add_child(jump)
+	touch_buttons = [left, right, up_button, down_button, jump]
+
+
+func _layout_touch_controls() -> void:
+	if touch_buttons.size() != 5:
+		return
+	var viewport_size := get_viewport().get_visible_rect().size
+	var bottom := viewport_size.y - 94.0
+	var centers := [
+		Vector2(80, bottom - 85),
+		Vector2(240, bottom - 85),
+		Vector2(160, bottom - 170),
+		Vector2(160, bottom),
+		Vector2(viewport_size.x - 92, bottom)
+	]
+	for index in range(touch_buttons.size()):
+		touch_buttons[index].position = centers[index] - Vector2(64, 64)
 
 
 func _build_transition() -> void:
@@ -176,14 +187,25 @@ func _make_button(text: String, pos: Vector2, button_size: Vector2) -> Button:
 	return button
 
 
-func _make_action_button(text: String, action: String) -> Button:
-	var button := Button.new()
-	button.text = text
-	button.size = Vector2(82, 82)
-	button.modulate = Color(1, 1, 1, 0.78)
-	button.add_theme_font_size_override("font_size", 22)
-	button.button_down.connect(func() -> void: Input.action_press(action))
-	button.button_up.connect(func() -> void: Input.action_release(action))
+func _make_action_button(text: String, action: String) -> TouchScreenButton:
+	var button := TouchScreenButton.new()
+	button.texture_normal = TOUCH_TEXTURE
+	button.action = action
+	button.visibility_mode = TouchScreenButton.VISIBILITY_ALWAYS
+	var hit_area := CircleShape2D.new()
+	hit_area.radius = 50.0
+	button.shape = hit_area
+	button.shape_centered = true
+	var label := Label.new()
+	label.text = text
+	label.position = Vector2.ZERO
+	label.size = Vector2(128, 128)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 26 if text != "ZIPLA" else 19)
+	label.add_theme_color_override("font_color", Color.WHITE)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(label)
 	return button
 
 

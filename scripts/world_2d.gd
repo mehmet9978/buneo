@@ -3,6 +3,9 @@ extends Node2D
 signal request_3d
 
 const Player2D := preload("res://scripts/player_2d.gd")
+const BACKGROUND_TEXTURE := preload("res://assets/kenney/bg_grasslands.png")
+const GROUND_TEXTURE := preload("res://assets/kenney/grassHalfMid.png")
+const COIN_TEXTURE := preload("res://assets/kenney/coinGold.png")
 
 var player: CharacterBody2D
 
@@ -20,44 +23,27 @@ func _ready() -> void:
 func _build_background() -> void:
 	var sky := Polygon2D.new()
 	sky.polygon = PackedVector2Array([Vector2(-500, -300), Vector2(4500, -300), Vector2(4500, 850), Vector2(-500, 850)])
-	sky.color = Color("101a3f")
+	sky.color = Color("c8f1f4")
 	sky.z_index = -20
 	add_child(sky)
-
-	for i in range(18):
-		var star := Polygon2D.new()
-		var x := float((i * 233 + 79) % 4100)
-		var y := float((i * 97 + 40) % 380)
-		star.polygon = _circle_points(3.0 + float(i % 3), 8)
-		star.position = Vector2(x, y)
-		star.color = Color(0.45, 0.85, 1.0, 0.75)
-		star.z_index = -15
-		add_child(star)
-
-	var skyline := Polygon2D.new()
-	skyline.polygon = PackedVector2Array([
-		Vector2(-100, 610), Vector2(-100, 480), Vector2(180, 480), Vector2(180, 420),
-		Vector2(430, 420), Vector2(430, 510), Vector2(720, 510), Vector2(720, 390),
-		Vector2(950, 390), Vector2(950, 470), Vector2(1270, 470), Vector2(1270, 350),
-		Vector2(1520, 350), Vector2(1520, 490), Vector2(1900, 490), Vector2(1900, 410),
-		Vector2(2280, 410), Vector2(2280, 520), Vector2(2750, 520), Vector2(2750, 370),
-		Vector2(3100, 370), Vector2(3100, 490), Vector2(3520, 490), Vector2(3520, 400),
-		Vector2(3900, 400), Vector2(3900, 610)
-	])
-	skyline.color = Color("182859")
-	skyline.z_index = -10
-	add_child(skyline)
+	for i in range(5):
+		var background := Sprite2D.new()
+		background.texture = BACKGROUND_TEXTURE
+		background.position = Vector2(512 + 1024 * i, 360)
+		background.scale = Vector2(1.0, 1.5)
+		background.z_index = -15
+		add_child(background)
 
 
 func _build_level() -> void:
-	_add_platform(Vector2(450, 650), Vector2(900, 100), Color("263d77"))
-	_add_platform(Vector2(1160, 560), Vector2(280, 38), Color("31519a"))
-	_add_platform(Vector2(1510, 460), Vector2(250, 38), Color("31519a"))
-	_add_platform(Vector2(1870, 580), Vector2(300, 38), Color("31519a"))
-	_add_platform(Vector2(2260, 490), Vector2(260, 38), Color("31519a"))
-	_add_platform(Vector2(2630, 390), Vector2(220, 38), Color("31519a"))
-	_add_platform(Vector2(3060, 560), Vector2(500, 38), Color("31519a"))
-	_add_platform(Vector2(3680, 650), Vector2(900, 100), Color("263d77"))
+	_add_platform(Vector2(450, 650), Vector2(900, 100))
+	_add_platform(Vector2(1160, 560), Vector2(280, 38))
+	_add_platform(Vector2(1510, 460), Vector2(250, 38))
+	_add_platform(Vector2(1870, 580), Vector2(300, 38))
+	_add_platform(Vector2(2260, 490), Vector2(260, 38))
+	_add_platform(Vector2(2630, 390), Vector2(220, 38))
+	_add_platform(Vector2(3060, 560), Vector2(500, 38))
+	_add_platform(Vector2(3680, 650), Vector2(900, 100))
 
 	var coin_positions := [
 		Vector2(420, 535), Vector2(680, 535), Vector2(1160, 495),
@@ -69,7 +55,7 @@ func _build_level() -> void:
 	_add_portal(Vector2(3790, 515))
 
 
-func _add_platform(center: Vector2, size: Vector2, color: Color) -> void:
+func _add_platform(center: Vector2, size: Vector2) -> void:
 	var body := StaticBody2D.new()
 	body.position = center
 	body.collision_layer = 2
@@ -84,13 +70,16 @@ func _add_platform(center: Vector2, size: Vector2, color: Color) -> void:
 		-size * 0.5, Vector2(size.x * 0.5, -size.y * 0.5),
 		size * 0.5, Vector2(-size.x * 0.5, size.y * 0.5)
 	])
-	visual.color = color
+	visual.color = Color("a77546")
 	body.add_child(visual)
-	var edge := Line2D.new()
-	edge.points = PackedVector2Array([Vector2(-size.x * 0.5, -size.y * 0.5), Vector2(size.x * 0.5, -size.y * 0.5)])
-	edge.width = 6.0
-	edge.default_color = Color("54e1ff")
-	body.add_child(edge)
+	for index in range(ceili(size.x / 70.0)):
+		var tile := Sprite2D.new()
+		tile.texture = GROUND_TEXTURE
+		tile.centered = false
+		tile.region_enabled = true
+		tile.region_rect = Rect2(0, 0, minf(70.0, size.x - index * 70.0), 70)
+		tile.position = Vector2(-size.x * 0.5 + index * 70.0, -size.y * 0.5)
+		body.add_child(tile)
 	add_child(body)
 
 
@@ -104,14 +93,10 @@ func _add_coin(pos: Vector2) -> void:
 	shape.radius = 18.0
 	collision.shape = shape
 	coin.add_child(collision)
-	var outer := Polygon2D.new()
-	outer.polygon = _circle_points(18.0, 16)
-	outer.color = Color("ffd447")
-	coin.add_child(outer)
-	var inner := Polygon2D.new()
-	inner.polygon = _circle_points(10.0, 16)
-	inner.color = Color("ff9f1c")
-	coin.add_child(inner)
+	var visual := Sprite2D.new()
+	visual.texture = COIN_TEXTURE
+	visual.scale = Vector2(0.7, 0.7)
+	coin.add_child(visual)
 	coin.body_entered.connect(func(body: Node) -> void:
 		if body == player:
 			GameState.add_coin()
